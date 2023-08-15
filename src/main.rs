@@ -65,8 +65,8 @@ impl GameMatrix {
         for row in 0..4usize {
             for col in 0..4usize {
                 match &self.0[row].0[col].filler {
-                    None => {_tmp += " x "},
-                    Some(val) => {_tmp += &format!(" {} ", val.value)}
+                    None => {_tmp += "    "},
+                    Some(val) => {_tmp += &format!("{:4}", val.value)}
                 }
             }
             _tmp += "\n";
@@ -92,7 +92,7 @@ impl GameMatrix {
     ///  x x x x        x x x x
     /// ```
     #[allow(unreachable_code)]
-    fn check_conjoin(&mut self) {
+    fn check_conjoin(&mut self, rand_vec : bool) {
         //todo!("Необходимо сделать для версии 0.3.0");
 
         let mut moving = false;
@@ -137,8 +137,23 @@ impl GameMatrix {
 
         if moving {
             let new_boxy = self.0[boxy_into.0].0[boxy_into.1].filler.as_ref().unwrap().value + &self.0[boxy_from.0].0[boxy_from.1].filler.as_ref().unwrap().value;
-            self.0[boxy_into.0].0[boxy_into.1].filler = Some(Boxy { value: new_boxy });
-            self.0[boxy_from.0].0[boxy_from.1].filler = None;
+
+            if rand_vec {
+                if rand::random() {
+                    self.0[boxy_into.0].0[boxy_into.1].filler = Some(Boxy { value: new_boxy });
+                    self.0[boxy_from.0].0[boxy_from.1].filler = None;
+                } else {
+
+                    self.0[boxy_from.0].0[boxy_from.1].filler = Some(Boxy { value: new_boxy });
+                    self.0[boxy_into.0].0[boxy_into.1].filler = None;
+                }
+            } else {
+                self.0[boxy_into.0].0[boxy_into.1].filler = Some(Boxy { value: new_boxy });
+                self.0[boxy_from.0].0[boxy_from.1].filler = None;
+            }
+            
+            
+            
         }
 
     }
@@ -184,6 +199,12 @@ struct Player {
     wealth: u32,
     collected_primes: Vec<u32>,
 }
+
+#[derive(Debug, Default)]
+/// Структура настроек, чего не понятного то
+struct Settings {
+    rand_conjoin_vector : bool, // Рандомизация направления слияния. Проверка будет происходить всё так же  ЛВ -> ПН
+}
 #[derive(Debug, Default)]
 
 /// Центральная структура, пакующая в себе все необходимые компоненты для работы игры
@@ -191,22 +212,26 @@ struct Game {
     player: Player,
     spawner: Spawner,
     matrix: GameMatrix,
+    settings : Settings,
 }
 
 impl Game {
     fn new() -> Game {
-        Game { player: Player::default(), spawner: Spawner { upper_limit: 5, cooldown: TIME_5_SECONDS }, matrix: GameMatrix::init() }
+        Game { player: Player::default(),
+             spawner: Spawner { upper_limit: 5, cooldown: /*TIME_5_SECONDS */ std::time::Duration::from_millis(100)}, 
+             matrix: GameMatrix::init(),
+            settings : Settings { rand_conjoin_vector: true } }
     }
 
 
     /// Тестовый цикл для проверки логики приложения
     fn idle(&mut self) {
         loop {
-            self.matrix.check_conjoin();
-            println!("Nodes conjoined: ");
-            self.matrix.pretty_console_print();
+            self.matrix.check_conjoin(self.settings.rand_conjoin_vector);
+            //println!("Nodes conjoined: ");
+            //self.matrix.pretty_console_print();
             self.matrix.spawn(self.spawner.upper_limit);
-            println!("New node spawned: ");
+            println!("\n\n\n\n\n\n\n\n\n\n\n\n");
             self.matrix.pretty_console_print();
             std::thread::sleep(self.spawner.cooldown);
         }
