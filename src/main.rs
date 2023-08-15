@@ -1,3 +1,6 @@
+
+const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(5000);
+
 #[derive(Debug, Default)]
 /// Стуктура, описывающая себе значение клетки на поле
 struct Boxy {
@@ -43,7 +46,7 @@ struct GameMatrix([MatrixRow; 4]);
 impl GameMatrix {
     /// Рандомно инициализирует матрицу игры с 1 начальным элементом
     fn init() -> GameMatrix {
-        let (x, y) = ((rand::random::<u8>() % 4u8), (rand::random::<u8>() % 4u8));
+        let (x, y) = GameMatrix::get_random_node_coords();
         dbg!((x,y).clone());
 
         let mut initializator = GameMatrix {..Default::default()};
@@ -51,6 +54,10 @@ impl GameMatrix {
         initializator
     }
 
+    /// Генерирует случайные координаты для матрицы, возвращая их в виде кортежа из 2 элементов
+    fn get_random_node_coords() -> (u8, u8) {
+        ((rand::random::<u8>() % 4u8), (rand::random::<u8>() % 4u8))
+    }
 
     /// Консольная функция вывода текущей матрицы
     fn pretty_console_print(&self) {
@@ -65,6 +72,91 @@ impl GameMatrix {
             _tmp += "\n";
         }
         println!("{_tmp}");
+    }
+
+    /// Проверка полей матрицы на доступность к слиянияю по правилам слияния.
+    /// Правила слияния: Сначала проверяем правого соседа, затем нижнего соседа. 
+    /// Если слияние возможно -> значение текущей ячейки добавляется к соседу, 
+    /// а текущая ячейка заменяется на пустую, доступную.
+    /// 
+    /// # Примеры
+    /// ```
+    ///  x x x 1        x x x x
+    ///  x x x 1    ->  x x x 2
+    ///  x x x x        x x x x
+    ///  x x x x        x x x x
+    /// 
+    ///  x 2 3 x        x x 5 x
+    ///  x 3 x x    ->  x 3 x x
+    ///  x x x x        x x x x
+    ///  x x x x        x x x x
+    /// ```
+    #[allow(unreachable_code)]
+    fn check_conjoin(&mut self) {
+        //todo!("Необходимо сделать для версии 0.3.0");
+
+        let mut moving = false;
+        let mut boxy_from : (usize, usize) = (0usize, 0usize);
+        let mut boxy_into : (usize, usize) = (0usize, 0usize);
+
+        'outer: for row in 0..4usize {
+            for col in 0..4usize {
+                match &self.0[row].0[col].filler {
+                    None => {},
+                    Some(_) => {
+                        if col != 3usize {
+                            match &self.0[row].0[col+1usize].filler {
+                                None => {},
+                                Some(_) => {
+
+                                    boxy_from = (row, col);
+                                    boxy_into = (row, col+1);
+                                    moving = true;
+
+                                    break 'outer;
+                                }
+                            }
+                        } // if col != 3usize end
+
+                        // ветка на случай если правый сосед несливаемый, проверяем нижнего соседа
+                        match &self.0[row+1usize].0[col].filler {
+                            None => {},
+                            Some(_) => {
+                                
+                                boxy_from = (row, col);
+                                boxy_into = (row+1, col);
+                                moving = true;
+
+                                break 'outer;
+                            }
+                        }
+                    }
+                }
+            }
+        } // 'outer end
+
+        if moving {
+            let new_boxy = self.0[boxy_into.0].0[boxy_into.1].filler.as_ref().unwrap().value + &self.0[boxy_from.0].0[boxy_from.1].filler.as_ref().unwrap().value;
+            self.0[boxy_into.0].0[boxy_into.1].filler = Some(Boxy { value: new_boxy });
+            self.0[boxy_from.0].0[boxy_from.1].filler = None;
+        }
+
+    }
+    #[allow(unreachable_code)]
+    /// Создаёт в случайной точке новую ноду, содержащую значение по верхнему пределу.
+    /// Если случайно сгенерированная точка уже занята, пробует повторно сгенерировать точку
+    fn spawn(&mut self, upper_limit : u32) {
+        //todo!("Необходимо сделать для версии 0.3.0");
+        loop {
+            let point = GameMatrix::get_random_node_coords();
+            match self.0[point.0 as usize].0[point.1 as usize].filler {
+                Some(_) => {},
+                None => {
+                    self.0[point.0 as usize].0[point.1 as usize].filler = Some(Boxy::new());
+                    break;
+                },
+            }
+        }
     }    
 }
 
@@ -103,7 +195,21 @@ struct Game {
 
 impl Game {
     fn new() -> Game {
-        Game { player: Player::default(), spawner: Spawner::default(), matrix: GameMatrix::init() }
+        Game { player: Player::default(), spawner: Spawner { upper_limit: 5, cooldown: TIME_5_SECONDS }, matrix: GameMatrix::init() }
+    }
+
+
+    /// Тестовый цикл для проверки логики приложения
+    fn idle(&mut self) {
+        loop {
+            self.matrix.check_conjoin();
+            println!("Nodes conjoined: ");
+            self.matrix.pretty_console_print();
+            self.matrix.spawn(self.spawner.upper_limit);
+            println!("New node spawned: ");
+            self.matrix.pretty_console_print();
+            std::thread::sleep(self.spawner.cooldown);
+        }
     }
 }
 
