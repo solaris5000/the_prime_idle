@@ -99,7 +99,7 @@ impl GameMatrix {
         let mut boxy_from : (usize, usize) = (0usize, 0usize);
         let mut boxy_into : (usize, usize) = (0usize, 0usize);
 
-        'outer: for row in 0..4usize {
+        'outer: for row in 0..3usize {
             for col in 0..4usize {
                 match &self.0[row].0[col].filler {
                     None => {},
@@ -214,7 +214,9 @@ impl Game {
 }
 
 fn main() {
-    let game = Game::new();
+    let mut game = Game::new();
 
-    game.matrix.pretty_console_print();
+    //game.matrix.pretty_console_print();
+
+    game.idle();
 }
