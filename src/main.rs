@@ -93,7 +93,7 @@ impl GameMatrix {
     /// ```
     #[allow(unreachable_code)]
     fn check_conjoin(&mut self, rand_vec : bool) {
-        //todo!("Необходимо сделать для версии 0.3.0");
+        //todo!("Необходимо сделать для версии 0.5.0 правильное слияние");
 
         let mut moving = false;
         let mut boxy_from : (usize, usize) = (0usize, 0usize);
@@ -103,17 +103,18 @@ impl GameMatrix {
             for col in 0..4usize {
                 match &self.0[row].0[col].filler {
                     None => {},
-                    Some(_) => {
+                    Some(base) => {
                         if col != 3usize {
                             match &self.0[row].0[col+1usize].filler {
                                 None => {},
-                                Some(_) => {
+                                Some(neigbour) => {
+                                    if primes::is_prime( (base.value + neigbour.value) as u64) {
+                                        boxy_from = (row, col);
+                                        boxy_into = (row, col+1);
+                                        moving = true;
 
-                                    boxy_from = (row, col);
-                                    boxy_into = (row, col+1);
-                                    moving = true;
-
-                                    break 'outer;
+                                        break 'outer;
+                                    }
                                 }
                             }
                         } // if col != 3usize end
@@ -121,13 +122,14 @@ impl GameMatrix {
                         // ветка на случай если правый сосед несливаемый, проверяем нижнего соседа
                         match &self.0[row+1usize].0[col].filler {
                             None => {},
-                            Some(_) => {
-                                
-                                boxy_from = (row, col);
-                                boxy_into = (row+1, col);
-                                moving = true;
+                            Some(neigbour) => {
+                                if primes::is_prime( (base.value + neigbour.value) as u64) {
+                                    boxy_from = (row, col);
+                                    boxy_into = (row+1, col);
+                                    moving = true;
 
-                                break 'outer;
+                                    break 'outer;
+                                }
                             }
                         }
                     }
@@ -218,7 +220,7 @@ struct Game {
 impl Game {
     fn new() -> Game {
         Game { player: Player::default(),
-             spawner: Spawner { upper_limit: 5, cooldown: /*TIME_5_SECONDS */ std::time::Duration::from_millis(100)}, 
+             spawner: Spawner { upper_limit: 5, cooldown: /*TIME_5_SECONDS */ std::time::Duration::from_millis(500)}, 
              matrix: GameMatrix::init(),
             settings : Settings { rand_conjoin_vector: true } }
     }
