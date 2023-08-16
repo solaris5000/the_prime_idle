@@ -4,7 +4,7 @@ const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(50
 const SCORE_NEW_PRIME_COST_MODIFIER : f64 = 1.0;
 const SCORE_REPEATING_PRIME_COST_MODIFIER : f64 = 0.3;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 /// Стуктура, описывающая себе значение клетки на поле
 struct Boxy {
     value: u64,
@@ -42,6 +42,11 @@ impl Default for MatrixNode {
 #[derive(Debug, Default)]
 struct MatrixRow([MatrixNode; 4]);
 
+struct Displacement {
+    forward : bool,
+    displasment : (i32, i32),
+}
+
 #[derive(Debug, Default)]
 /// Структура, описывающую матрицу игрового поля, состоящую из нодов
 struct GameMatrix([MatrixRow; 4]);
@@ -68,13 +73,131 @@ impl GameMatrix {
         for row in 0..4usize {
             for col in 0..4usize {
                 match &self.0[row].0[col].filler {
-                    None => {_tmp += "    "},
-                    Some(val) => {_tmp += &format!("{:4}", val.value)}
+                    None => {_tmp += "  X "},
+                    Some(val) => {_tmp += &format!("{:^4}", val.value)}
                 }
             }
             _tmp += "\n";
         }
         println!("{_tmp}");
+    }
+
+    /// Функция смещения всех значений в матрице к какому-либо краю, в зависимости от направления
+    fn lean(&mut self, direction : MatrixNodesMoveDirection) {
+        let displacement = match direction {
+            MatrixNodesMoveDirection::ToBottom => {
+                Displacement {forward : false, displasment : (1, 0)}
+            },
+            MatrixNodesMoveDirection::ToLeft => {
+                Displacement {forward : true, displasment : (0, -1)}
+            },
+            MatrixNodesMoveDirection::ToRight => {
+                Displacement {forward : false, displasment : (0, 1)}
+            },
+            MatrixNodesMoveDirection::ToTop => {
+                Displacement {forward : true, displasment : (-1, 0)}
+            },
+        };
+
+        if displacement.forward {
+            for row in 0..4usize {
+                for col in 0..4usize {
+
+                    // проверяем что текущее значение не является None, чтобы не двигать пустоту зазря
+                    match self.0[row].0[col].filler {
+                        None => {continue;},
+                        Some(_) => {}
+                    };
+                    if displacement.displasment.0 == -1 {
+                        // Условия для отсечки пограничных значений верха и лево
+                        if  row == 0 {
+                            println!("BOING");
+                            continue;
+                        } else {
+                            println!("SOME COOLer STUFF");
+                            for rw in (1..=row).rev() {
+                                println!("SOME COOLer STUFF INNER");
+                                match self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler {
+                                    None => {
+                                        self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler = Some(Boxy { value: self.0[rw].0[col].filler.clone().unwrap().value });
+                                        self.0[rw].0[col].filler = None;
+                                    },
+                                    Some(_) => {break;}
+                                };
+                            }
+                        };
+                    };
+
+                    if displacement.displasment.1 == -1 {
+                        if col == 0 {
+                        println!("BOING");
+                        continue;
+                    } else {
+                        for cl in (1..=col).rev() {
+                            match self.0[row].0[(cl as i32 + displacement.displasment.1) as usize].filler {
+                                None => {
+                                    self.0[row].0[(cl as i32 + displacement.displasment.1) as usize].filler = Some(Boxy { value: self.0[row].0[cl].filler.clone().unwrap().value });
+                                    self.0[row].0[cl].filler = None;
+                                },
+                                Some(_) => {break;}
+                            };
+                        }
+                    };
+                }
+                }
+
+            } 
+        }   // displacment.forward == false =>
+        else {
+            for row in (0..4usize).rev() {
+                for col in (0..4usize).rev() {
+
+                    // проверяем что текущее значение не является None, чтобы не двигать пустоту зазря
+                    match self.0[row].0[col].filler {
+                        None => {continue;},
+                        Some(_) => {}
+                    };
+                    if displacement.displasment.0 == 1 {
+                        // Условия для отсечки пограничных значений верха и лево
+                        if  row == 3 {
+                            println!("BOING");
+                            continue;
+                        } else {
+                            println!("SOME COOLer STUFF");
+                            for rw in row..3usize {
+                                println!("SOME COOLer STUFF INNER");
+                                match self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler {
+                                    None => {
+                                        self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler = Some(Boxy { value: self.0[rw].0[col].filler.clone().unwrap().value });
+                                        self.0[rw].0[col].filler = None;
+                                    },
+                                    Some(_) => {break;}
+                                };
+                            }
+                        };
+                    };
+
+                    if displacement.displasment.1 == 1 {
+                        if col == 3 {
+                        println!("BOING");
+                        continue;
+                    } else {
+                        for cl in col..3usize {
+                            match self.0[row].0[(cl as i32 + displacement.displasment.1) as usize].filler {
+                                None => {
+                                    self.0[row].0[(cl as i32 + displacement.displasment.1) as usize].filler = Some(Boxy { value: self.0[row].0[cl].filler.clone().unwrap().value });
+                                    self.0[row].0[cl].filler = None;
+                                },
+                                Some(_) => {break;}
+                            };
+                        }
+                    };
+                }
+                }
+
+            } 
+
+        }
     }
 
     /// # Слияние
@@ -110,6 +233,8 @@ impl GameMatrix {
         //todo!("Необходимо сделать для версии 0.5.0 правильное слияние");
         //todo!("Необходимо сделать для версии 0.5.0 подсчёт очков за слияние, подсчёт собраных уникальных простых чисел");
         //todo!("0.5.2 -> необходимо сделать проверку на то, доступна ли яччейка игрового поля, задел на будущее расширение");
+        todo!("Пофиксить то, что только 1 значение за конжойн сливается");
+        todo!("Пофиксить то, что не идёт сливание 3 с 4 строки и 3 с 4 столбца");
         let mut moving = false;
         let mut boxy_from : (usize, usize) = (0usize, 0usize);
         let mut boxy_into : (usize, usize) = (0usize, 0usize);
@@ -308,13 +433,15 @@ impl Game {
                     };
 
                     match direction {
-                        MatrixNodesMoveDirection::ToBottom => {println!("Bot");},
-                        MatrixNodesMoveDirection::ToLeft => {println!("Left");},
-                        MatrixNodesMoveDirection::ToRight => {println!("Right");},
-                        MatrixNodesMoveDirection::ToTop =>{println!("Top");}
+                        MatrixNodesMoveDirection::ToBottom => {println!("Bot"); matrix.write().unwrap().lean(MatrixNodesMoveDirection::ToBottom);},
+                        MatrixNodesMoveDirection::ToLeft => {println!("Left"); matrix.write().unwrap().lean(MatrixNodesMoveDirection::ToLeft);},
+                        MatrixNodesMoveDirection::ToRight => {println!("Right"); matrix.write().unwrap().lean(MatrixNodesMoveDirection::ToRight);},
+                        MatrixNodesMoveDirection::ToTop =>{println!("Top"); matrix.write().unwrap().lean(MatrixNodesMoveDirection::ToTop);}
                     }
 
                     // функиця смещения матрицы по направлению
+                    //todo!("0.5.х, смещение значений в матрице, разработать функцию которая будет принимать MatrixNodesMoveDirection");
+
                     matrix.write().unwrap().check_conjoin(settings.read().unwrap().rand_conjoin_vector, &player);
                     println!("\n\n\n\n\n\n\n\n\n\n\n\n");
                     matrix.read().unwrap().pretty_console_print();
@@ -353,7 +480,7 @@ impl Game {
 
 fn main() {
     let mut game = Game::new();
-
+   
     //game.matrix.pretty_console_print();
 
     game.idle();
