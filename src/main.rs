@@ -1,10 +1,12 @@
 
 const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(5000);
+const SCORE_NEW_PRIME_COST_MODIFIER : f64 = 1.0;
+const SCORE_REPEATING_PRIME_COST_MODIFIER : f64 = 0.3;
 
 #[derive(Debug, Default)]
 /// Стуктура, описывающая себе значение клетки на поле
 struct Boxy {
-    value: u32,
+    value: u64,
 }
 
 impl Boxy {
@@ -92,8 +94,9 @@ impl GameMatrix {
     ///  x x x x        x x x x
     /// ```
     #[allow(unreachable_code)]
-    fn check_conjoin(&mut self, rand_vec : bool) {
+    fn check_conjoin(&mut self, rand_vec : bool, player : &mut Player) {
         //todo!("Необходимо сделать для версии 0.5.0 правильное слияние");
+        //todo!("Необходимо сделать для версии 0.5.0 подсчёт очков за слияние, подсчёт собраных уникальных простых чисел");
 
         let mut moving = false;
         let mut boxy_from : (usize, usize) = (0usize, 0usize);
@@ -108,7 +111,8 @@ impl GameMatrix {
                             match &self.0[row].0[col+1usize].filler {
                                 None => {},
                                 Some(neigbour) => {
-                                    if primes::is_prime( (base.value + neigbour.value) as u64) {
+                                    let temp = base.value + neigbour.value;
+                                    if primes::is_prime(temp) {
                                         boxy_from = (row, col);
                                         boxy_into = (row, col+1);
                                         moving = true;
@@ -123,7 +127,8 @@ impl GameMatrix {
                         match &self.0[row+1usize].0[col].filler {
                             None => {},
                             Some(neigbour) => {
-                                if primes::is_prime( (base.value + neigbour.value) as u64) {
+                                let temp = base.value + neigbour.value;
+                                if primes::is_prime(temp) {
                                     boxy_from = (row, col);
                                     boxy_into = (row+1, col);
                                     moving = true;
@@ -139,6 +144,14 @@ impl GameMatrix {
 
         if moving {
             let new_boxy = self.0[boxy_into.0].0[boxy_into.1].filler.as_ref().unwrap().value + &self.0[boxy_from.0].0[boxy_from.1].filler.as_ref().unwrap().value;
+
+            // функция проверки содержания есть ли это простое число в векторе уже собранных простых чисел
+
+            if player.is_prime_collected(new_boxy) {
+                player.score += (new_boxy as f64 * SCORE_REPEATING_PRIME_COST_MODIFIER).ceil() as u64;
+            } else {
+                player.score += (new_boxy as f64 * SCORE_NEW_PRIME_COST_MODIFIER).ceil() as u64;
+            }
 
             if rand_vec {
                 if rand::random() {
@@ -162,7 +175,7 @@ impl GameMatrix {
     #[allow(unreachable_code)]
     /// Создаёт в случайной точке новую ноду, содержащую значение по верхнему пределу.
     /// Если случайно сгенерированная точка уже занята, пробует повторно сгенерировать точку
-    fn spawn(&mut self, upper_limit : u32) {
+    fn spawn(&mut self, upper_limit : u64) {
         //todo!("Необходимо сделать для версии 0.3.0");
         loop {
             let point = GameMatrix::get_random_node_coords();
@@ -189,7 +202,7 @@ impl IntoIterator for GameMatrix {
 #[derive(Debug, Default)]
 /// Описывает объект, который содержит параметры для спавна новой ноды на поле по истечению таймера
 struct Spawner {
-    upper_limit: u32,
+    upper_limit: u64,
     cooldown: std::time::Duration,
 }
 
@@ -197,9 +210,24 @@ struct Spawner {
 /// Структура, описывающая игрока и все необходимые для него данные
 struct Player {
     name: String,
-    score: u32,
-    wealth: u32,
-    collected_primes: Vec<u32>,
+    score: u64,
+    wealth: u64,
+    collected_primes: Vec<u64>,
+}
+
+impl Player {
+
+    /// Проверят, собирал ли игрок уже переданное простое число.
+    /// В случае если простое число не было собрано, возввращается false и число заносится в вектор собранных чисел
+    /// В случае если простое число было собрано, возвращается true
+    fn is_prime_collected(&mut self, prime : u64) -> bool {
+        if self.collected_primes.contains(&prime) {
+            true
+        } else {
+            self.collected_primes.push(prime);
+            false
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -229,12 +257,13 @@ impl Game {
     /// Тестовый цикл для проверки логики приложения
     fn idle(&mut self) {
         loop {
-            self.matrix.check_conjoin(self.settings.rand_conjoin_vector);
+            self.matrix.check_conjoin(self.settings.rand_conjoin_vector, &mut self.player);
             //println!("Nodes conjoined: ");
             //self.matrix.pretty_console_print();
             self.matrix.spawn(self.spawner.upper_limit);
             println!("\n\n\n\n\n\n\n\n\n\n\n\n");
             self.matrix.pretty_console_print();
+            println!("Score : {}", self.player.score);
             std::thread::sleep(self.spawner.cooldown);
         }
     }
