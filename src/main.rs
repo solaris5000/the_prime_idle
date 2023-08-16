@@ -1,3 +1,4 @@
+use std::{thread, sync::RwLock};
 
 const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(5000);
 const SCORE_NEW_PRIME_COST_MODIFIER : f64 = 1.0;
@@ -76,31 +77,43 @@ impl GameMatrix {
         println!("{_tmp}");
     }
 
+    /// # Слияние
     /// Проверка полей матрицы на доступность к слиянияю по правилам слияния.
-    /// Правила слияния: Сначала проверяем правого соседа, затем нижнего соседа. 
-    /// Если слияние возможно -> значение текущей ячейки добавляется к соседу, 
-    /// а текущая ячейка заменяется на пустую, доступную.
+    /// Правила слияния зависят от переменной `rand_vec`, принимающей `bool`: 
+    /// Сначала проверяем правого соседа, затем нижнего соседа. 
+    /// Если слияние возможно -> проверяет значение `rand_vec = false` значение текущей ячейки добавляется к соседу, 
+    /// а текущая ячейка заменяется на пустую, доступную; Иначе если `rand_vec = true`, 
+    /// направление слияния зависит от результата зависит от генерируемого функицей `rand::random()` значения.
     /// 
     /// # Примеры
+    /// `rand_vec = false`
     /// ```
     ///  x x x 1        x x x x
     ///  x x x 1    ->  x x x 2
     ///  x x x x        x x x x
     ///  x x x x        x x x x
-    /// 
-    ///  x 2 3 x        x x 5 x
-    ///  x 3 x x    ->  x 3 x x
-    ///  x x x x        x x x x
-    ///  x x x x        x x x x
     /// ```
+    /// `rand_vec = true`
+    /// ```
+    ///  x 2 3 x        x x 5 x
+    ///  2 3 x 2    ->  5 x x 2
+    ///  x x 1 x        x x 2 x
+    ///  x x 1 x        x x x x
+    /// ```
+    /// 
+    /// # Начисление очков
+    /// При обнаружении слияния игроку `player` начисляются очки, зависящие от констант 
+    /// `SCORE_NEW_PRIME_COST_MODIFIER` и `SCORE_REPEATING_PRIME_COST_MODIFIER`, определяющих сколько игрок
+    /// получит очков за получение очередного простого числа на поле
     #[allow(unreachable_code)]
-    fn check_conjoin(&mut self, rand_vec : bool, player : &mut Player) {
+    fn check_conjoin(&mut self, rand_vec : bool, player : &std::sync::Arc<RwLock<Player>>) {
         //todo!("Необходимо сделать для версии 0.5.0 правильное слияние");
         //todo!("Необходимо сделать для версии 0.5.0 подсчёт очков за слияние, подсчёт собраных уникальных простых чисел");
-
+        //todo!("0.5.2 -> необходимо сделать проверку на то, доступна ли яччейка игрового поля, задел на будущее расширение");
         let mut moving = false;
         let mut boxy_from : (usize, usize) = (0usize, 0usize);
         let mut boxy_into : (usize, usize) = (0usize, 0usize);
+        let mut player = player.write().unwrap();
 
         'outer: for row in 0..3usize {
             for col in 0..4usize {
@@ -190,6 +203,13 @@ impl GameMatrix {
     }    
 }
 
+enum MatrixNodesMoveDirection {
+    ToLeft,
+    ToRight,
+    ToTop,
+    ToBottom
+}
+
 /*
 impl IntoIterator for GameMatrix {
     type Item = MatrixRow;
@@ -248,24 +268,86 @@ struct Game {
 impl Game {
     fn new() -> Game {
         Game { player: Player::default(),
-             spawner: Spawner { upper_limit: 5, cooldown: /*TIME_5_SECONDS */ std::time::Duration::from_millis(500)}, 
+             spawner: Spawner { upper_limit: 5, cooldown: TIME_5_SECONDS /*std::time::Duration::from_millis(500)*/}, 
              matrix: GameMatrix::init(),
             settings : Settings { rand_conjoin_vector: true } }
     }
 
 
     /// Тестовый цикл для проверки логики приложения
-    fn idle(&mut self) {
-        loop {
-            self.matrix.check_conjoin(self.settings.rand_conjoin_vector, &mut self.player);
+    fn idle(self) {
+        //loop {
+            // делаем многопоточность между вводом данных, выводом и спавном.
+            let matrix_arc = std::sync::Arc::new(std::sync::RwLock::new(self.matrix));
+            let player_arc = std::sync::Arc::new(std::sync::RwLock::new(self.player));
+            let settings_arc = std::sync::Arc::new(std::sync::RwLock::new(self.settings));
+            let spawner_arc = std::sync::Arc::new(std::sync::RwLock::new(self.spawner));
+
+            // создаём скоп, чтобы наши потоки не могли пережить функцию и оставить утечку данных
+            thread::scope(|s| {
+
+            // поток, ответственный за ввод данных от пользователя
+            s.spawn(|| {
+                let spawner = spawner_arc.clone();
+                let matrix = matrix_arc.clone();
+                let settings = settings_arc.clone();
+                let player = player_arc.clone();
+
+                loop {
+                    let direction_input = &catch_input::input!("Choose direction (T B L R): ")[..];
+
+                    let direction = match direction_input {
+                        "T" => {MatrixNodesMoveDirection::ToTop},
+                        "B" => {MatrixNodesMoveDirection::ToBottom},
+                        "L" => {MatrixNodesMoveDirection::ToLeft},
+                        "R" => {MatrixNodesMoveDirection::ToRight},
+                        _ => {
+                            println!("Wrong input, try again.\n");
+                            continue;
+                        },
+                    };
+
+                    match direction {
+                        MatrixNodesMoveDirection::ToBottom => {println!("Bot");},
+                        MatrixNodesMoveDirection::ToLeft => {println!("Left");},
+                        MatrixNodesMoveDirection::ToRight => {println!("Right");},
+                        MatrixNodesMoveDirection::ToTop =>{println!("Top");}
+                    }
+
+                    // функиця смещения матрицы по направлению
+                    matrix.write().unwrap().check_conjoin(settings.read().unwrap().rand_conjoin_vector, &player);
+                    println!("\n\n\n\n\n\n\n\n\n\n\n\n");
+                    matrix.read().unwrap().pretty_console_print();
+                    println!("Score : {}", player.read().unwrap().score);
+                }
+            });
+
+            // поток, ответственный за спавн
+            s.spawn(||{
+                let spawner = spawner_arc.clone();
+                let matrix = matrix_arc.clone();
+                let settings = settings_arc.clone();
+                let player = player_arc.clone();
+                loop {
+                    matrix.write().unwrap().spawn(spawner.read().unwrap().upper_limit.clone());
+                    matrix.write().unwrap().check_conjoin(settings.read().unwrap().rand_conjoin_vector, &player);
+                    println!("\n\n\n\n\n\n\n\n\n\n\n\n");
+                    matrix.read().unwrap().pretty_console_print();
+                    println!("Score : {}", player.read().unwrap().score);
+                    std::thread::sleep(spawner.read().unwrap().cooldown.clone());
+                }
+            });
+        });
+            
+            //self.matrix.check_conjoin(self.settings.rand_conjoin_vector, &mut self.player);
             //println!("Nodes conjoined: ");
             //self.matrix.pretty_console_print();
-            self.matrix.spawn(self.spawner.upper_limit);
-            println!("\n\n\n\n\n\n\n\n\n\n\n\n");
-            self.matrix.pretty_console_print();
-            println!("Score : {}", self.player.score);
-            std::thread::sleep(self.spawner.cooldown);
-        }
+            
+            
+           // self.matrix.pretty_console_print();
+            //println!("Score : {}", self.player.score);
+            
+        //}
     }
 }
 
