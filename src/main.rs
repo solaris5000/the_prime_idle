@@ -269,14 +269,79 @@ impl GameMatrix {
         //todo!("0.5.2 -> необходимо сделать проверку на то, доступна ли яччейка игрового поля, задел на будущее расширение");
         //todo!("0.6.1 -> Пофиксить то, что только 1 значение за конжойн сливается");
         //todo!("0.6.2 -> Пофиксить то, что не идёт сливание 3 с 4 строки и 3 с 4 столбца");
+        //todo!("0.7.0 -> рефакторинг конжойна, необходимо смотреть соседей со всех сторон, и втягивать их в число которое сливается, переписать документацию к методу")
         let mut moving = false;
         let mut boxy_from : (usize, usize) = (0usize, 0usize);
         let mut boxy_into : (usize, usize) = (0usize, 0usize);
         let mut player = player.write().unwrap();
 
-        'outer: for row in 0..4usize {
-            for col in 0..4usize {
-                moving = false;
+        let rows_limit = 3usize;
+        let cols_limit = 3usize;
+
+        // Порядок соседей для обработки В Л П Н
+        let operating_cell_neighbours : [Option<&MatrixNode>;4] = [None; 4];
+
+        for row in 0..=rows_limit {
+            for col in 0..=cols_limit {
+                let operating_cell = &self.0[row].0[col];
+
+                // Сброс всех соседей со счетов, для начала новой итерации
+                for mut _neighbour in operating_cell_neighbours {
+                    _neighbour = None;
+                }
+
+                todo!("0.7.0 -> рефакторинг конжойна, необходимо смотреть соседей со всех сторон, и втягивать их в число которое сливается, переписать документацию к методу");
+                // Заделка на будущее возможное расширение игрового поля.
+                if operating_cell.aviable {
+                    match operating_cell.filler {
+                        None => {/*ну если ячейка пустая, то зачем пытаться с ней что-то делать*/},
+                        Some(oc_inner) => {
+                            // А вот тут уже что-то делаем, если ячейка полная
+                            // А именно, нужно проверить соседей со всех сторон
+                            // Проверяем существование соседей в порядке В Л П Н
+                            // Если соседи сущестувют, в цикле начинаем складывает число из рабочей ячейки с соседними
+                            // Порядок сложения : В Л П Н
+                            // Если в процессе сложения получилось простое число, записываем его в целевую ячейку, задействованных соседей очищаем
+                            // Если простое число не получилось, а мы вышли из цикла, работаем дальше
+                            
+                            for neighbour_inner in operating_cell_neighbours.into_iter().enumerate() {
+                                match neighbour_inner.0 {
+                                    // Верх
+                                    0usize => {
+                                        if row != 0 {
+                                            neighbour_inner.1 = Some(&self.0[row-1usize].0[col]);
+                                        }
+                                    },
+                                    // Лево
+                                    1usize => {
+                                        if col != 0 {
+                                            neighbour_inner.1 = Some(&self.0[row].0[col-1usize]);
+                                        }
+                                    },
+                                    // Право
+                                    2usize => {
+                                        if col != cols_limit {
+                                            neighbour_inner.1 = Some(&self.0[row].0[col+1usize]);
+                                        }
+                                    },
+                                    // Низ
+                                    3usize => {
+                                        if row != rows_limit {
+                                            neighbour_inner.1 = Some(&self.0[row+1usize].0[col]);
+                                        }
+                                    },
+                                    _ => { unreachable!("По идее сюда нельзя добраться, т.к. соседей у клетки максимум 4 и массив ток на 4 элемента")},
+                                }
+                            }
+
+                        }
+                    }
+                } 
+                /*
+                Это старый кусок кода, слияние только 2 соседних элементов. Пораждает проблему 7.
+                Проблемой 7 - тут названо невозможность составления простого числа из пар простых чисел до 7, плюс еденица
+
+                moving = false; 
                 match &self.0[row].0[col].filler {
                     None => {},
                     Some(base) => {
@@ -289,8 +354,6 @@ impl GameMatrix {
                                         boxy_from = (row, col);
                                         boxy_into = (row, col+1);
                                         moving = true;
-
-                                        //break 'outer;
                                     }
                                 }
                             }
@@ -306,8 +369,6 @@ impl GameMatrix {
                                     boxy_from = (row, col);
                                     boxy_into = (row+1, col);
                                     moving = true;
-
-                                    //break 'outer;
                                 }
                             }
                         }
@@ -342,9 +403,9 @@ impl GameMatrix {
                     
                     
                     
-                }
+                } */
             }
-        } // 'outer end
+        } 
 
         
 
@@ -519,7 +580,7 @@ impl Game {
 }
 
 fn main() {
-    let mut game = Game::new();
+    let game = Game::new();
    
     //game.matrix.pretty_console_print();
 
