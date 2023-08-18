@@ -1,6 +1,6 @@
 use std::{thread, sync::RwLock};
 
-const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(5000);
+const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(10000);
 const SCORE_NEW_PRIME_COST_MODIFIER : f64 = 1.0;
 const SCORE_REPEATING_PRIME_COST_MODIFIER : f64 = 0.3;
 
@@ -59,6 +59,40 @@ impl GameMatrix {
 
         let mut initializator = GameMatrix {..Default::default()};
         initializator.0[x as usize].0[y as usize] = MatrixNode::new();
+        initializator
+    }
+
+    /// Тестовый инициализатор
+    fn inittest() -> GameMatrix {
+        let (x, y) = GameMatrix::get_random_node_coords();
+        dbg!((x,y).clone());
+
+        let mut initializator = GameMatrix {
+                0: [ MatrixRow { 0 : [ 
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : None},
+                                    MatrixNode {aviable : true, filler : None},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
+                ]}, 
+                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : None},
+                                    MatrixNode {aviable : true, filler : None},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
+                ]}, 
+                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
+                ]}, 
+                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
+                ]}, 
+
+                ]
+        };
+        //initializator.0[x as usize].0[y as usize] = MatrixNode::new();
         initializator
     }
 
@@ -233,8 +267,8 @@ impl GameMatrix {
         //todo!("Необходимо сделать для версии 0.5.0 правильное слияние");
         //todo!("Необходимо сделать для версии 0.5.0 подсчёт очков за слияние, подсчёт собраных уникальных простых чисел");
         //todo!("0.5.2 -> необходимо сделать проверку на то, доступна ли яччейка игрового поля, задел на будущее расширение");
-        todo!("Пофиксить то, что только 1 значение за конжойн сливается");
-        todo!("Пофиксить то, что не идёт сливание 3 с 4 строки и 3 с 4 столбца");
+        //todo!("0.6.1 -> Пофиксить то, что только 1 значение за конжойн сливается");
+        //todo!("Пофиксить то, что не идёт сливание 3 с 4 строки и 3 с 4 столбца");
         let mut moving = false;
         let mut boxy_from : (usize, usize) = (0usize, 0usize);
         let mut boxy_into : (usize, usize) = (0usize, 0usize);
@@ -242,6 +276,7 @@ impl GameMatrix {
 
         'outer: for row in 0..3usize {
             for col in 0..4usize {
+                moving = false;
                 match &self.0[row].0[col].filler {
                     None => {},
                     Some(base) => {
@@ -255,7 +290,7 @@ impl GameMatrix {
                                         boxy_into = (row, col+1);
                                         moving = true;
 
-                                        break 'outer;
+                                        //break 'outer;
                                     }
                                 }
                             }
@@ -271,43 +306,45 @@ impl GameMatrix {
                                     boxy_into = (row+1, col);
                                     moving = true;
 
-                                    break 'outer;
+                                    //break 'outer;
                                 }
                             }
                         }
                     }
                 }
+
+                if moving {
+                    let new_boxy = self.0[boxy_into.0].0[boxy_into.1].filler.as_ref().unwrap().value + &self.0[boxy_from.0].0[boxy_from.1].filler.as_ref().unwrap().value;
+        
+                    // функция проверки содержания есть ли это простое число в векторе уже собранных простых чисел
+        
+                    if player.is_prime_collected(new_boxy) {
+                        player.score += (new_boxy as f64 * SCORE_REPEATING_PRIME_COST_MODIFIER).ceil() as u64;
+                    } else {
+                        player.score += (new_boxy as f64 * SCORE_NEW_PRIME_COST_MODIFIER).ceil() as u64;
+                    }
+        
+                    if rand_vec {
+                        if rand::random() {
+                            self.0[boxy_into.0].0[boxy_into.1].filler = Some(Boxy { value: new_boxy });
+                            self.0[boxy_from.0].0[boxy_from.1].filler = None;
+                        } else {
+        
+                            self.0[boxy_from.0].0[boxy_from.1].filler = Some(Boxy { value: new_boxy });
+                            self.0[boxy_into.0].0[boxy_into.1].filler = None;
+                        }
+                    } else {
+                        self.0[boxy_into.0].0[boxy_into.1].filler = Some(Boxy { value: new_boxy });
+                        self.0[boxy_from.0].0[boxy_from.1].filler = None;
+                    }
+                    
+                    
+                    
+                }
             }
         } // 'outer end
 
-        if moving {
-            let new_boxy = self.0[boxy_into.0].0[boxy_into.1].filler.as_ref().unwrap().value + &self.0[boxy_from.0].0[boxy_from.1].filler.as_ref().unwrap().value;
-
-            // функция проверки содержания есть ли это простое число в векторе уже собранных простых чисел
-
-            if player.is_prime_collected(new_boxy) {
-                player.score += (new_boxy as f64 * SCORE_REPEATING_PRIME_COST_MODIFIER).ceil() as u64;
-            } else {
-                player.score += (new_boxy as f64 * SCORE_NEW_PRIME_COST_MODIFIER).ceil() as u64;
-            }
-
-            if rand_vec {
-                if rand::random() {
-                    self.0[boxy_into.0].0[boxy_into.1].filler = Some(Boxy { value: new_boxy });
-                    self.0[boxy_from.0].0[boxy_from.1].filler = None;
-                } else {
-
-                    self.0[boxy_from.0].0[boxy_from.1].filler = Some(Boxy { value: new_boxy });
-                    self.0[boxy_into.0].0[boxy_into.1].filler = None;
-                }
-            } else {
-                self.0[boxy_into.0].0[boxy_into.1].filler = Some(Boxy { value: new_boxy });
-                self.0[boxy_from.0].0[boxy_from.1].filler = None;
-            }
-            
-            
-            
-        }
+        
 
     }
     #[allow(unreachable_code)]
@@ -394,7 +431,8 @@ impl Game {
     fn new() -> Game {
         Game { player: Player::default(),
              spawner: Spawner { upper_limit: 5, cooldown: TIME_5_SECONDS /*std::time::Duration::from_millis(500)*/}, 
-             matrix: GameMatrix::init(),
+             //matrix: GameMatrix::init(),
+             matrix: GameMatrix::inittest(),
             settings : Settings { rand_conjoin_vector: true } }
     }
 
