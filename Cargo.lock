@@ -75,7 +75,7 @@ dependencies = [
 
 [[package]]
 name = "the_prime_idle"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "catch-input",
  "primes",

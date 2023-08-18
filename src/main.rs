@@ -1,6 +1,6 @@
 use std::{thread, sync::RwLock};
 
-const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(10000);
+const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(1000);
 const SCORE_NEW_PRIME_COST_MODIFIER : f64 = 1.0;
 const SCORE_REPEATING_PRIME_COST_MODIFIER : f64 = 0.3;
 
@@ -69,20 +69,20 @@ impl GameMatrix {
 
         let mut initializator = GameMatrix {
                 0: [ MatrixRow { 0 : [ 
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
                                     MatrixNode {aviable : true, filler : None},
                                     MatrixNode {aviable : true, filler : None},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
+                                    MatrixNode {aviable : true, filler : None},
+                                    MatrixNode {aviable : true, filler : None}
                 ]}, 
-                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : None},
                                     MatrixNode {aviable : true, filler : None},
                                     MatrixNode {aviable : true, filler : None},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
+                                    MatrixNode {aviable : true, filler : None}
                 ]}, 
-                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
+                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : None},
+                                    MatrixNode {aviable : true, filler : None},
+                                    MatrixNode {aviable : true, filler : None},
+                                    MatrixNode {aviable : true, filler : None}
                 ]}, 
                 MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
                                     MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
@@ -268,13 +268,13 @@ impl GameMatrix {
         //todo!("Необходимо сделать для версии 0.5.0 подсчёт очков за слияние, подсчёт собраных уникальных простых чисел");
         //todo!("0.5.2 -> необходимо сделать проверку на то, доступна ли яччейка игрового поля, задел на будущее расширение");
         //todo!("0.6.1 -> Пофиксить то, что только 1 значение за конжойн сливается");
-        //todo!("Пофиксить то, что не идёт сливание 3 с 4 строки и 3 с 4 столбца");
+        //todo!("0.6.2 -> Пофиксить то, что не идёт сливание 3 с 4 строки и 3 с 4 столбца");
         let mut moving = false;
         let mut boxy_from : (usize, usize) = (0usize, 0usize);
         let mut boxy_into : (usize, usize) = (0usize, 0usize);
         let mut player = player.write().unwrap();
 
-        'outer: for row in 0..3usize {
+        'outer: for row in 0..4usize {
             for col in 0..4usize {
                 moving = false;
                 match &self.0[row].0[col].filler {
@@ -297,6 +297,7 @@ impl GameMatrix {
                         } // if col != 3usize end
 
                         // ветка на случай если правый сосед несливаемый, проверяем нижнего соседа
+                        if row != 3usize {
                         match &self.0[row+1usize].0[col].filler {
                             None => {},
                             Some(neigbour) => {
@@ -309,6 +310,7 @@ impl GameMatrix {
                                     //break 'outer;
                                 }
                             }
+                        }
                         }
                     }
                 }
