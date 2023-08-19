@@ -332,8 +332,118 @@ impl GameMatrix {
                                     },
                                     _ => { unreachable!("По идее сюда нельзя добраться, т.к. соседей у клетки максимум 4 и массив ток на 4 элемента")},
                                 }
+                            } //  for neighbour_inner in operating_cell_neighbours.into_iter().enumerate() end
+
+                            let mut maybe_new_prime = oc_inner.value;
+
+                            /* Нужно придумать алгоритм или просто кусок кода, который бы охватывал все возможные комбанции для сляния
+                            со всеми соседями, предполагаю, что стоит сделать следующее:
+                            
+                            сначала пробуем сливать всех соседей, если не получилось,
+                            пробуем верх + низ, затем лево + право
+                            если не получилось, идём по порядку проверок В Л П Н */
+
+                            // Проверяем попытку слияния со всеми соседями вместе
+                            for operating_neighbour in operating_cell_neighbours {
+                                match operating_neighbour {
+                                    None => {},
+                                    Some(on_inner) => {
+                                        match on_inner.filler {
+                                            None => {},
+                                            Some(on_inner_boxy) => {
+                                                maybe_new_prime += on_inner_boxy.value;
+                                            }
+                                        }
+                                    },
+                                }
+                            }
+                            if primes::is_prime(maybe_new_prime) {
+                                // обработка на случай если все сразу стали 
+                                //let a = operating_cell_neighbours[1].as_mut();
+                                // Возможно так можно будет мутировать, надо будет разобраться с этим, либо до конца блока
+                                // тащить массив с соседями и там его курочить
+                            } else {
+                                maybe_new_prime = oc_inner.value;
                             }
 
+                            let mut even = true;
+                            // Проверяем попытку слияния с соседями верх-низ
+                            for operating_neighbour in operating_cell_neighbours {
+                                if even {
+                                    even = !even;
+                                    match operating_neighbour {
+                                        None => {},
+                                        Some(on_inner) => {
+                                            match on_inner.filler {
+                                                None => {},
+                                                Some(on_inner_boxy) => {
+                                                    maybe_new_prime += on_inner_boxy.value;
+                                                }
+                                            }
+                                        },
+                                    }
+                                } else {
+                                    even = !even;
+                                }
+                                
+                            }
+
+                            if primes::is_prime(maybe_new_prime) {
+                                // обработка на случай если все сразу стали 
+                                //let a = operating_cell_neighbours[1].as_mut();
+                                // Возможно так можно будет мутировать, надо будет разобраться с этим, либо до конца блока
+                                // тащить массив с соседями и там его курочить
+                            } else {
+                                maybe_new_prime = oc_inner.value;
+                            }
+
+                            let mut even: bool = true;
+                            // Проверяем попытку слияния с соседями лево-право
+                            for operating_neighbour in operating_cell_neighbours {
+                                if !even {
+                                    even = !even;
+                                    match operating_neighbour {
+                                        None => {},
+                                        Some(on_inner) => {
+                                            match on_inner.filler {
+                                                None => {},
+                                                Some(on_inner_boxy) => {
+                                                    maybe_new_prime += on_inner_boxy.value;
+                                                }
+                                            }
+                                        },
+                                    }
+                                } else {
+                                    even = !even;
+                                }
+                                
+                            }
+
+                            if primes::is_prime(maybe_new_prime) {
+                                // обработка на случай если все сразу стали 
+                                //let a = operating_cell_neighbours[1].as_mut();
+                                // Возможно так можно будет мутировать, надо будет разобраться с этим, либо до конца блока
+                                // тащить массив с соседями и там его курочить
+                            } else {
+                                maybe_new_prime = oc_inner.value;
+                            }
+
+                            // Проверяем попытку слияния В П Л Н
+                            for operating_neighbour in operating_cell_neighbours {
+                                match operating_neighbour {
+                                    None => {},
+                                    Some(on_inner) => {
+                                        match on_inner.filler {
+                                            None => {},
+                                            Some(on_inner_boxy) => {
+                                                if primes::is_prime(maybe_new_prime + oc_inner.value) {
+                                                    // какая-то обработка если первй попавшийся сосед образует с этим числом простое число.
+                                                }
+                                            }
+                                        }
+                                    },
+                                }
+                            }
                         }
                     }
                 } 
