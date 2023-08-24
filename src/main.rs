@@ -241,7 +241,7 @@ impl GameMatrix {
         // я думал что в функцию надо передать arc..., но опказывается я вызываю функцию итак из того, что получаю из arc rwlock 
         //let matrix = mtx.write().unwrap();
         let matrix = self;
-        let player = player.write().unwrap();
+        let mut player = player.write().unwrap();
 
         let rows_limit = 3usize;
         let cols_limit = 3usize;
@@ -343,7 +343,7 @@ impl GameMatrix {
 
                 // обработка флагов и нового значения
                 if conjoined {
-                    matrix.pretty_console_print();
+                    //matrix.pretty_console_print();
                     if f_top {
                         matrix.0[row].0[col].filler = Some(Boxy { value: matrix.0[row].0[col].filler.unwrap().value + matrix.0[row-1].0[col].filler.unwrap().value});
                         matrix.0[row-1].0[col].filler = None;
@@ -363,7 +363,9 @@ impl GameMatrix {
                         matrix.0[row].0[col].filler = Some(Boxy { value: matrix.0[row].0[col].filler.unwrap().value +  matrix.0[row+1].0[col].filler.unwrap().value});
                         matrix.0[row+1].0[col].filler = None;
                     }
-                    matrix.pretty_console_print();
+
+                    player.add_score(matrix.0[row].0[col].filler.unwrap().value);
+                    //matrix.pretty_console_print();
                 }
             
 
@@ -734,6 +736,17 @@ impl Player {
             false
         }
     }
+
+    /// Увеличивает количество очков игрока в зависимости от переданного в функцию простого числа
+    /// При просчёте очков применяет модификаторы константы для новых и повторяющихся простых чисел
+    fn add_score(&mut self, prime : u64) {
+        println!("adding score for {}", prime);
+        if self.is_prime_collected(prime) {
+            self.score += (prime as f64 * SCORE_REPEATING_PRIME_COST_MODIFIER).ceil() as u64;
+        } else {
+            self.score += (prime as f64 * SCORE_NEW_PRIME_COST_MODIFIER).ceil() as u64;
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -783,11 +796,11 @@ impl Game {
                 
 
                 loop {
-                    println!("==========DBG ZONE==========");
-                    matrix.write().unwrap().new_check_conjoinn(&player);
-                    println!("\n\n\n\n\n\n\n\n\n\n\n\n");
-                    matrix.read().unwrap().pretty_console_print();
-                    println!("==========DBG ZONE==========");
+                    //println!("==========DBG ZONE==========");
+                    //matrix.write().unwrap().new_check_conjoinn(&player);
+                    //println!("\n\n\n\n\n\n\n\n\n\n\n\n");
+                    //matrix.read().unwrap().pretty_console_print();
+                   // println!("==========DBG ZONE==========");
                     let direction_input = &catch_input::input!("Choose direction (T B L R): ")[..];
 
                     let direction = match direction_input {
