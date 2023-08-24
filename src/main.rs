@@ -1,6 +1,6 @@
-use std::{thread, sync::RwLock, rc::Rc};
+use std::{thread, sync::RwLock, process::exit};
 
-const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(10);
+const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(5000);
 const SCORE_NEW_PRIME_COST_MODIFIER : f64 = 1.0;
 const SCORE_REPEATING_PRIME_COST_MODIFIER : f64 = 0.3;
 
@@ -59,7 +59,7 @@ impl GameMatrix {
     /// Рандомно инициализирует матрицу игры с 1 начальным элементом
     fn init() -> GameMatrix {
         let (x, y) = GameMatrix::get_random_node_coords();
-        dbg!((x,y).clone());
+        //dbg!((x,y).clone());
 
         let mut initializator = GameMatrix {..Default::default()};
         initializator.0[x as usize].0[y as usize] = MatrixNode::new();
@@ -106,6 +106,7 @@ impl GameMatrix {
 
     /// Консольная функция вывода текущей матрицы
     fn pretty_console_print(&self) {
+        
         let mut _tmp = String::new();
         for row in 0..4usize {
             for col in 0..4usize {
@@ -116,7 +117,8 @@ impl GameMatrix {
             }
             _tmp += "\n";
         }
-        println!("{_tmp}");
+        _tmp += "\nInput direction or command (T B L R collected):\n";
+        print!("{_tmp}");
     }
 
     /// Функция смещения всех значений в матрице к какому-либо краю, в зависимости от направления
@@ -148,12 +150,10 @@ impl GameMatrix {
                     if displacement.displasment.0 == -1 {
                         // Условия для отсечки пограничных значений верха и лево
                         if  row == 0 {
-                            println!("BOING");
                             continue;
                         } else {
-                            println!("SOME COOLer STUFF");
                             for rw in (1..=row).rev() {
-                                println!("SOME COOLer STUFF INNER");
+
                                 match self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler {
                                     None => {
                                         self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler = Some(Boxy { value: self.0[rw].0[col].filler.clone().unwrap().value });
@@ -167,7 +167,6 @@ impl GameMatrix {
 
                     if displacement.displasment.1 == -1 {
                         if col == 0 {
-                        println!("BOING");
                         continue;
                     } else {
                         for cl in (1..=col).rev() {
@@ -197,12 +196,9 @@ impl GameMatrix {
                     if displacement.displasment.0 == 1 {
                         // Условия для отсечки пограничных значений верха и лево
                         if  row == 3 {
-                            println!("BOING");
                             continue;
                         } else {
-                            println!("SOME COOLer STUFF");
                             for rw in row..3usize {
-                                println!("SOME COOLer STUFF INNER");
                                 match self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler {
                                     None => {
                                         self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler = Some(Boxy { value: self.0[rw].0[col].filler.clone().unwrap().value });
@@ -216,7 +212,6 @@ impl GameMatrix {
 
                     if displacement.displasment.1 == 1 {
                         if col == 3 {
-                        println!("BOING");
                         continue;
                     } else {
                         for cl in col..3usize {
@@ -390,11 +385,12 @@ impl GameMatrix {
                         matrix.0[row].0[col].filler = Some(Boxy { value: matrix.0[row].0[col].filler.unwrap().value +  matrix.0[row+1].0[col].filler.unwrap().value});
                         matrix.0[row+1].0[col].filler = None;
                     }
-                    println!("Conjoing new prime {} into the {} {}", matrix.0[row].0[col].filler.unwrap().value, row, col);
-                                dbg!(f_top.clone());
-                                dbg!(f_lef.clone());
-                                dbg!(f_rig.clone());
-                                dbg!(f_bot.clone());
+                    // Le classique debug lines
+                    //println!("Conjoing new prime {} into the {} {}", matrix.0[row].0[col].filler.unwrap().value, row, col);
+                     //           dbg!(f_top.clone());
+                    //            dbg!(f_lef.clone());
+                    //            dbg!(f_rig.clone());
+                    //            dbg!(f_bot.clone());
                     player.add_score(matrix.0[row].0[col].filler.unwrap().value);
                     //matrix.pretty_console_print();
                 }
@@ -442,6 +438,7 @@ impl GameMatrix {
         //todo!("0.6.2 -> Пофиксить то, что не идёт сливание 3 с 4 строки и 3 с 4 столбца");
         //todo!("0.7.0 -> рефакторинг конжойна, необходимо смотреть соседей со всех сторон, и втягивать их в число которое сливается, переписать документацию к методу")
         //todo!(self обернуть в arc, а то параллельности нету)
+        !panic!("Вырезано в 0.7.0.");
         let mut moving = false;
         let mut boxy_from : (usize, usize) = (0usize, 0usize);
         let mut boxy_into : (usize, usize) = (0usize, 0usize);
@@ -704,13 +701,37 @@ impl GameMatrix {
         
 
     }
+
+    fn gameover_check(&self, player : &std::sync::Arc<RwLock<Player>>) {
+        for row in 0..3usize {
+            for col in 0..3usize {
+                match self.0[row].0[col].filler {
+                    None => { return; } // просто возвращаемся из функции, если есть свободная клетка
+                    Some(_) => {},
+                }
+            }
+        }
+
+        let player = player.read().unwrap();
+        println!("
+        ===========================\n
+                GAME OVER\n
+        Your score: {}\n
+        You have collected {} unique primes\n
+        List of collected primes:", player.score, player.collected_primes.len());
+        player.print_colledted();
+        exit(0);
+    }
     #[allow(unreachable_code)]
     /// Создаёт в случайной точке новую ноду, содержащую значение по верхнему пределу.
     /// Если случайно сгенерированная точка уже занята, пробует повторно сгенерировать точку
-    fn spawn(&mut self, upper_limit : u64) {
+    /// В случае, если все ячейки заняты, инициирует завершение игры
+    fn spawn(&mut self, upper_limit : u64, player : &std::sync::Arc<RwLock<Player>>) {
         //todo!("Необходимо сделать для версии 0.3.0");
+        //todo!("0.9.0 переписать эту функцию, чтобы она брала только пустые клетки, иначе возможен бесконечный цикл")
+        self.gameover_check(player);
         loop {
-            let point = GameMatrix::get_random_node_coords();
+            let point = GameMatrix::get_random_node_coords(); // Вот эту фкнцию надо переписать чтобы она брала только пустые клетки в расчёт
             match self.0[point.0 as usize].0[point.1 as usize].filler {
                 Some(_) => {},
                 None => {
@@ -763,6 +784,7 @@ impl Player {
         if self.collected_primes.contains(&prime) {
             true
         } else {
+            println!("Wow, you have collected {}", prime);
             self.collected_primes.push(prime);
             false
         }
@@ -771,11 +793,23 @@ impl Player {
     /// Увеличивает количество очков игрока в зависимости от переданного в функцию простого числа
     /// При просчёте очков применяет модификаторы константы для новых и повторяющихся простых чисел
     fn add_score(&mut self, prime : u64) {
-        println!("adding score for {}", prime);
+        //println!("adding score for {}", prime);
         if self.is_prime_collected(prime) {
             self.score += (prime as f64 * SCORE_REPEATING_PRIME_COST_MODIFIER).ceil() as u64;
         } else {
             self.score += (prime as f64 * SCORE_NEW_PRIME_COST_MODIFIER).ceil() as u64;
+        }
+    }
+
+    fn print_colledted(&self) {
+        let mut first = true;
+        for prime in &self.collected_primes {
+            if first {
+                first = !first;
+                print!("{prime}");
+            } else {
+                print!(", {prime}");
+            }
         }
     }
 }
@@ -832,33 +866,41 @@ impl Game {
                     //println!("\n\n\n\n\n\n\n\n\n\n\n\n");
                     //matrix.read().unwrap().pretty_console_print();
                    // println!("==========DBG ZONE==========");
-                    let direction_input = &catch_input::input!("Choose direction (T B L R): ")[..];
+                    let input = &catch_input::input!("")[..];
 
-                    let direction = match direction_input {
+                    let command = match input {
                         "T" => {MatrixNodesMoveDirection::ToTop},
                         "B" => {MatrixNodesMoveDirection::ToBottom},
                         "L" => {MatrixNodesMoveDirection::ToLeft},
                         "R" => {MatrixNodesMoveDirection::ToRight},
+                        "collected" => {
+                            println!("\nYour collected primes: ");
+                            player.read().unwrap().print_colledted();
+                            continue;
+                        },
                         _ => {
                             println!("Wrong input, try again.\n");
                             continue;
                         },
                     };
 
-                    match direction {
+                    match command {
                         MatrixNodesMoveDirection::ToBottom => {println!("Bot"); matrix.write().unwrap().lean(MatrixNodesMoveDirection::ToBottom);},
                         MatrixNodesMoveDirection::ToLeft => {println!("Left"); matrix.write().unwrap().lean(MatrixNodesMoveDirection::ToLeft);},
                         MatrixNodesMoveDirection::ToRight => {println!("Right"); matrix.write().unwrap().lean(MatrixNodesMoveDirection::ToRight);},
-                        MatrixNodesMoveDirection::ToTop =>{println!("Top"); matrix.write().unwrap().lean(MatrixNodesMoveDirection::ToTop);}
+                        MatrixNodesMoveDirection::ToTop =>{println!("Top"); matrix.write().unwrap().lean(MatrixNodesMoveDirection::ToTop);},
+                        _ => {},
                     }
 
                     // функиця смещения матрицы по направлению
                     //todo!("0.5.х, смещение значений в матрице, разработать функцию которая будет принимать MatrixNodesMoveDirection");
 
-                    matrix.write().unwrap().new_check_conjoinn(&player);
+                    
                     println!("\n\n\n\n\n\n\n\n\n\n\n\n");
-                    matrix.read().unwrap().pretty_console_print();
+                    matrix.write().unwrap().new_check_conjoinn(&player);
                     println!("Score : {}", player.read().unwrap().score);
+                    matrix.read().unwrap().pretty_console_print();
+                    
                 }
             });
 
@@ -869,11 +911,11 @@ impl Game {
                 let settings = settings_arc.clone();
                 let player = player_arc.clone();
                 loop {
-                    matrix.write().unwrap().spawn(spawner.read().unwrap().upper_limit.clone());
-                    matrix.write().unwrap().new_check_conjoinn(&player);
+                    matrix.write().unwrap().spawn(spawner.read().unwrap().upper_limit.clone(), &player);
                     println!("\n\n\n\n\n\n\n\n\n\n\n\n");
-                    matrix.read().unwrap().pretty_console_print();
+                    matrix.write().unwrap().new_check_conjoinn(&player);
                     println!("Score : {}", player.read().unwrap().score);
+                    matrix.read().unwrap().pretty_console_print();
                     std::thread::sleep(spawner.read().unwrap().cooldown.clone());
                 }
             });
