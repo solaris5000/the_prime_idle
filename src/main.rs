@@ -325,7 +325,8 @@ impl GameMatrix {
                                 }
                             }
 
-                            if primes::is_prime(kinda_new_prime) {
+                            // Проверяем, станет ли целевая клетка новым простым числом и есть ли у неё соседи, замешанные в этом
+                            if (primes::is_prime(kinda_new_prime) && (f_top || f_lef || f_rig || f_bot)) {
                                 println!("Conjoing new prime {} into the {} {}", kinda_new_prime, row, col);
                                 dbg!(f_top.clone());
                                 dbg!(f_lef.clone());
