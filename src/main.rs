@@ -1,6 +1,6 @@
 use std::{thread, sync::RwLock, rc::Rc};
 
-const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(100);
+const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(10);
 const SCORE_NEW_PRIME_COST_MODIFIER : f64 = 1.0;
 const SCORE_REPEATING_PRIME_COST_MODIFIER : f64 = 0.3;
 
@@ -72,23 +72,23 @@ impl GameMatrix {
 
         let mut initializator = GameMatrix {
                 0: [ MatrixRow { 0 : [ 
-                                    MatrixNode {aviable : true, filler : None},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 23 })},
                                     MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
-                                    MatrixNode {aviable : true, filler : None},
-                                    MatrixNode {aviable : true, filler : None}
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 23 })}
                 ]}, 
                 MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 5 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 3 })},
-                                    MatrixNode {aviable : true, filler : None}
-                ]}, 
-                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : None},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 199 })},
                                     MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
+                ]}, 
+                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 23 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
+                ]}, 
+                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 7 })},
                                     MatrixNode {aviable : true, filler : None},
-                                    MatrixNode {aviable : true, filler : None}
-                ]}, 
-                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : None},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
                                     MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
                                     MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
                 ]}, 
@@ -263,7 +263,7 @@ impl GameMatrix {
                 f_rig = false;
 
                 let conjoined = 
-                loop {
+                'conjoiner : loop  {
                     match matrix.0[row].0[col].filler {
                     None => { break false; }, // если у нас точка матрицы пустая, зачем нам с ней вообще работать?
                         Some(operating_cell) => {
@@ -327,15 +327,41 @@ impl GameMatrix {
 
                             // Проверяем, станет ли целевая клетка новым простым числом и есть ли у неё соседи, замешанные в этом
                             if (primes::is_prime(kinda_new_prime) && (f_top || f_lef || f_rig || f_bot)) {
-                                println!("Conjoing new prime {} into the {} {}", kinda_new_prime, row, col);
-                                dbg!(f_top.clone());
-                                dbg!(f_lef.clone());
-                                dbg!(f_rig.clone());
-                                dbg!(f_bot.clone());
                                 // Флаги установлены, новое, потенциально prime значение получено, можно выходить из цикла-обёртки
-                                break true
+                                break 'conjoiner true
                             }
                             else {
+                                // Обнуление флагов
+                                f_top = false;
+                                f_bot = false;
+                                f_lef = false;
+                                f_rig = false;
+                                // оказывается только этого варианта недостаточно, пора переписывать
+
+                                // проверка на одного изи соседей в сторонах по правилу В Л П Н
+                                kinda_new_prime = operating_cell.value;
+                                for it in 0..=3usize {
+                                    match operating_cell_neighbours[it] {
+                                        None => {},
+                                        Some(nei) => {
+                                            match nei.filler {
+                                                None => {},
+                                                Some(val) => {
+                                                    if primes::is_prime(kinda_new_prime + val.value) {
+                                                        match it {
+                                                            0usize => {f_top = true;},
+                                                            1usize => {f_lef = true;},
+                                                            2usize => {f_rig = true;},
+                                                            3usize => {f_bot = true;},
+                                                            _ => {unreachable!()},
+                                                        }
+                                                        break 'conjoiner true;
+                                                    } 
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                                 break false
                             }
                         },
@@ -364,7 +390,11 @@ impl GameMatrix {
                         matrix.0[row].0[col].filler = Some(Boxy { value: matrix.0[row].0[col].filler.unwrap().value +  matrix.0[row+1].0[col].filler.unwrap().value});
                         matrix.0[row+1].0[col].filler = None;
                     }
-
+                    println!("Conjoing new prime {} into the {} {}", matrix.0[row].0[col].filler.unwrap().value, row, col);
+                                dbg!(f_top.clone());
+                                dbg!(f_lef.clone());
+                                dbg!(f_rig.clone());
+                                dbg!(f_bot.clone());
                     player.add_score(matrix.0[row].0[col].filler.unwrap().value);
                     //matrix.pretty_console_print();
                 }
@@ -769,8 +799,8 @@ impl Game {
     fn new() -> Game {
         Game { player: Player::default(),
              spawner: Spawner { upper_limit: 5, cooldown: TIME_5_SECONDS /*std::time::Duration::from_millis(500)*/}, 
-             //matrix: GameMatrix::init(),
-             matrix: GameMatrix::inittest(),
+             matrix: GameMatrix::init(),
+             //matrix: GameMatrix::inittest(),
             settings : Settings { rand_conjoin_vector: true } }
     }
 
