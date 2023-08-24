@@ -1,10 +1,10 @@
-use std::{thread, sync::RwLock};
+use std::{thread, sync::RwLock, rc::Rc};
 
-const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(1000);
+const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(100);
 const SCORE_NEW_PRIME_COST_MODIFIER : f64 = 1.0;
 const SCORE_REPEATING_PRIME_COST_MODIFIER : f64 = 0.3;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy)]
 /// Стуктура, описывающая себе значение клетки на поле
 struct Boxy {
     value: u64,
@@ -29,6 +29,10 @@ impl MatrixNode {
             aviable: true,
             filler: Some(Boxy::new()),
         }
+    }
+
+    fn free(&mut self) {
+        self.filler = None;
     }
 }
 
@@ -65,26 +69,25 @@ impl GameMatrix {
     /// Тестовый инициализатор
     fn inittest() -> GameMatrix {
         let (x, y) = GameMatrix::get_random_node_coords();
-        dbg!((x,y).clone());
 
         let mut initializator = GameMatrix {
                 0: [ MatrixRow { 0 : [ 
                                     MatrixNode {aviable : true, filler : None},
-                                    MatrixNode {aviable : true, filler : None},
-                                    MatrixNode {aviable : true, filler : None},
-                                    MatrixNode {aviable : true, filler : None}
-                ]}, 
-                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : None},
-                                    MatrixNode {aviable : true, filler : None},
-                                    MatrixNode {aviable : true, filler : None},
-                                    MatrixNode {aviable : true, filler : None}
-                ]}, 
-                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : None},
-                                    MatrixNode {aviable : true, filler : None},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
                                     MatrixNode {aviable : true, filler : None},
                                     MatrixNode {aviable : true, filler : None}
                 ]}, 
                 MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 5 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 3 })},
+                                    MatrixNode {aviable : true, filler : None}
+                ]}, 
+                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : None},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
+                                    MatrixNode {aviable : true, filler : None},
+                                    MatrixNode {aviable : true, filler : None}
+                ]}, 
+                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : None},
                                     MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
                                     MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
                                     MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
@@ -234,6 +237,141 @@ impl GameMatrix {
         }
     }
 
+    fn new_check_conjoinn(&mut self, player : &std::sync::Arc<RwLock<Player>>) {
+        // я думал что в функцию надо передать arc..., но опказывается я вызываю функцию итак из того, что получаю из arc rwlock 
+        //let matrix = mtx.write().unwrap();
+        let matrix = self;
+        let player = player.write().unwrap();
+
+        let rows_limit = 3usize;
+        let cols_limit = 3usize;
+
+        // Флаги того, какие элементы будут слиты
+        let mut f_top = false;
+        let mut f_bot = false;
+        let mut f_lef = false;
+        let mut f_rig = false;
+
+        // проходимся по каждой строке
+        for row in 0..=rows_limit {
+            // проходимся по каждой клетке
+            for col in 0..=cols_limit {
+                // Обнуление флагов
+                f_top = false;
+                f_bot = false;
+                f_lef = false;
+                f_rig = false;
+
+                let conjoined = 
+                loop {
+                    match matrix.0[row].0[col].filler {
+                    None => { break false; }, // если у нас точка матрицы пустая, зачем нам с ней вообще работать?
+                        Some(operating_cell) => {
+                            // Создаём массив из возможных соседей клетки
+                            let mut operating_cell_neighbours : [Option<&MatrixNode>;4] = [None; 4];
+
+                            // Заполняем массив соседей
+                            for it in 0usize..=3usize {
+                                match it {
+                                    // Верх
+                                    0usize => {
+                                        if row != 0 {
+                                            operating_cell_neighbours[it] = Some(&matrix.0[row-1usize].0[col]);
+                                        }
+                                    },
+                                    // Лево
+                                    1usize => {
+                                        if col != 0 {
+                                            operating_cell_neighbours[it] = Some(&matrix.0[row].0[col-1usize]);
+                                        }
+                                    },
+                                    // Право
+                                    2usize => {
+                                        if col != cols_limit {
+                                            operating_cell_neighbours[it] = Some(&matrix.0[row].0[col+1usize]);
+                                        }
+                                    },
+                                    // Низ
+                                    3usize => {
+                                        if row != rows_limit {
+                                            operating_cell_neighbours[it] = Some(&matrix.0[row+1usize].0[col]);
+                                        }
+                                    },
+                                    _ => { unreachable!("По идее сюда нельзя добраться, т.к. соседей у клетки максимум 4 и массив ток на 4 элемента")},
+                                }
+                            } //  for neighbour_inner in operating_cell_neighbours.into_iter().enumerate() end
+                            // Обрабатываем поведение слияния, вливаем слияние внутрь
+
+                            // Проверка что все 4 
+                            let mut kinda_new_prime = operating_cell.value;
+                            for it in 0..=3usize {
+                                match operating_cell_neighbours[it] {
+                                    None => {},
+                                    Some(nei) => {
+                                        match nei.filler {
+                                            None => {},
+                                            Some(val) => {
+                                                kinda_new_prime += val.value;
+                                                match it {
+                                                    0usize => {f_top = true;},
+                                                    1usize => {f_lef = true;},
+                                                    2usize => {f_rig = true;},
+                                                    3usize => {f_bot = true;},
+                                                    _ => {unreachable!()},
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if primes::is_prime(kinda_new_prime) {
+                                println!("Conjoing new prime {} into the {} {}", kinda_new_prime, row, col);
+                                dbg!(f_top.clone());
+                                dbg!(f_lef.clone());
+                                dbg!(f_rig.clone());
+                                dbg!(f_bot.clone());
+                                // Флаги установлены, новое, потенциально prime значение получено, можно выходить из цикла-обёртки
+                                break true
+                            }
+                            else {
+                                break false
+                            }
+                        },
+                    };
+                };// loop { match  end
+
+                // обработка флагов и нового значения
+                if conjoined {
+                    matrix.pretty_console_print();
+                    if f_top {
+                        matrix.0[row].0[col].filler = Some(Boxy { value: matrix.0[row].0[col].filler.unwrap().value + matrix.0[row-1].0[col].filler.unwrap().value});
+                        matrix.0[row-1].0[col].filler = None;
+                    }
+
+                    if f_lef {
+                        matrix.0[row].0[col].filler = Some(Boxy { value: matrix.0[row].0[col].filler.unwrap().value +  matrix.0[row].0[col-1].filler.unwrap().value});
+                        matrix.0[row].0[col-1].filler = None;
+                    }
+
+                    if f_rig {
+                        matrix.0[row].0[col].filler = Some(Boxy { value : matrix.0[row].0[col].filler.unwrap().value +  matrix.0[row].0[col+1].filler.unwrap().value});
+                        matrix.0[row].0[col+1].filler = None;
+                    }
+
+                    if f_bot {
+                        matrix.0[row].0[col].filler = Some(Boxy { value: matrix.0[row].0[col].filler.unwrap().value +  matrix.0[row+1].0[col].filler.unwrap().value});
+                        matrix.0[row+1].0[col].filler = None;
+                    }
+                    matrix.pretty_console_print();
+                }
+            
+
+            }
+            
+        }
+    }
+
     /// # Слияние
     /// Проверка полей матрицы на доступность к слиянияю по правилам слияния.
     /// Правила слияния зависят от переменной `rand_vec`, принимающей `bool`: 
@@ -270,6 +408,7 @@ impl GameMatrix {
         //todo!("0.6.1 -> Пофиксить то, что только 1 значение за конжойн сливается");
         //todo!("0.6.2 -> Пофиксить то, что не идёт сливание 3 с 4 строки и 3 с 4 столбца");
         //todo!("0.7.0 -> рефакторинг конжойна, необходимо смотреть соседей со всех сторон, и втягивать их в число которое сливается, переписать документацию к методу")
+        //todo!(self обернуть в arc, а то параллельности нету)
         let mut moving = false;
         let mut boxy_from : (usize, usize) = (0usize, 0usize);
         let mut boxy_into : (usize, usize) = (0usize, 0usize);
@@ -278,24 +417,23 @@ impl GameMatrix {
         let rows_limit = 3usize;
         let cols_limit = 3usize;
 
-        // Порядок соседей для обработки В Л П Н
-        let operating_cell_neighbours : [Option<&MatrixNode>;4] = [None; 4];
+        
+        
 
         for row in 0..=rows_limit {
             for col in 0..=cols_limit {
                 let operating_cell = &self.0[row].0[col];
 
+                // Порядок соседей для обработки В Л П Н
                 // Сброс всех соседей со счетов, для начала новой итерации
-                for mut _neighbour in operating_cell_neighbours {
-                    _neighbour = None;
-                }
+                let mut operating_cell_neighbours : [Option<&MatrixNode>;4] = [None; 4];
 
-                todo!("0.7.0 -> рефакторинг конжойна, необходимо смотреть соседей со всех сторон, и втягивать их в число которое сливается, переписать документацию к методу");
+                //todo!("0.7.0 -> рефакторинг конжойна, необходимо смотреть соседей со всех сторон, и втягивать их в число которое сливается, переписать документацию к методу");
                 // Заделка на будущее возможное расширение игрового поля.
                 if operating_cell.aviable {
                     match operating_cell.filler {
                         None => {/*ну если ячейка пустая, то зачем пытаться с ней что-то делать*/},
-                        Some(oc_inner) => {
+                        Some(mut oc_inner) => {
                             // А вот тут уже что-то делаем, если ячейка полная
                             // А именно, нужно проверить соседей со всех сторон
                             // Проверяем существование соседей в порядке В Л П Н
@@ -303,31 +441,31 @@ impl GameMatrix {
                             // Порядок сложения : В Л П Н
                             // Если в процессе сложения получилось простое число, записываем его в целевую ячейку, задействованных соседей очищаем
                             // Если простое число не получилось, а мы вышли из цикла, работаем дальше
-                            
-                            for neighbour_inner in operating_cell_neighbours.into_iter().enumerate() {
-                                match neighbour_inner.0 {
+
+                            for it in 0usize..=3usize {
+                                match it {
                                     // Верх
                                     0usize => {
                                         if row != 0 {
-                                            neighbour_inner.1 = Some(&self.0[row-1usize].0[col]);
+                                            operating_cell_neighbours[it] = Some(&self.0[row-1usize].0[col]);
                                         }
                                     },
                                     // Лево
                                     1usize => {
                                         if col != 0 {
-                                            neighbour_inner.1 = Some(&self.0[row].0[col-1usize]);
+                                            operating_cell_neighbours[it] = Some(&self.0[row].0[col-1usize]);
                                         }
                                     },
                                     // Право
                                     2usize => {
                                         if col != cols_limit {
-                                            neighbour_inner.1 = Some(&self.0[row].0[col+1usize]);
+                                            operating_cell_neighbours[it] = Some(&self.0[row].0[col+1usize]);
                                         }
                                     },
                                     // Низ
                                     3usize => {
                                         if row != rows_limit {
-                                            neighbour_inner.1 = Some(&self.0[row+1usize].0[col]);
+                                            operating_cell_neighbours[it] = Some(&self.0[row+1usize].0[col]);
                                         }
                                     },
                                     _ => { unreachable!("По идее сюда нельзя добраться, т.к. соседей у клетки максимум 4 и массив ток на 4 элемента")},
@@ -358,6 +496,19 @@ impl GameMatrix {
                                 }
                             }
                             if primes::is_prime(maybe_new_prime) {
+
+                                for mut ope_nei in operating_cell_neighbours {
+                                    match ope_nei {
+                                        None => {},
+                                        Some(_) => { 
+                                            let mut a = ope_nei.as_mut();
+                                            a = None; 
+                                        }
+                                    }
+                                }
+
+                                oc_inner.value = maybe_new_prime;
+                                println!("All together");
                                 // обработка на случай если все сразу стали 
                                 //let a = operating_cell_neighbours[1].as_mut();
                                 // Возможно так можно будет мутировать, надо будет разобраться с этим, либо до конца блока
@@ -628,8 +779,15 @@ impl Game {
                 let matrix = matrix_arc.clone();
                 let settings = settings_arc.clone();
                 let player = player_arc.clone();
+                
+                
 
                 loop {
+                    println!("==========DBG ZONE==========");
+                    matrix.write().unwrap().new_check_conjoinn(&player);
+                    println!("\n\n\n\n\n\n\n\n\n\n\n\n");
+                    matrix.read().unwrap().pretty_console_print();
+                    println!("==========DBG ZONE==========");
                     let direction_input = &catch_input::input!("Choose direction (T B L R): ")[..];
 
                     let direction = match direction_input {
@@ -653,7 +811,7 @@ impl Game {
                     // функиця смещения матрицы по направлению
                     //todo!("0.5.х, смещение значений в матрице, разработать функцию которая будет принимать MatrixNodesMoveDirection");
 
-                    matrix.write().unwrap().check_conjoin(settings.read().unwrap().rand_conjoin_vector, &player);
+                    matrix.write().unwrap().new_check_conjoinn(&player);
                     println!("\n\n\n\n\n\n\n\n\n\n\n\n");
                     matrix.read().unwrap().pretty_console_print();
                     println!("Score : {}", player.read().unwrap().score);
@@ -668,7 +826,7 @@ impl Game {
                 let player = player_arc.clone();
                 loop {
                     matrix.write().unwrap().spawn(spawner.read().unwrap().upper_limit.clone());
-                    matrix.write().unwrap().check_conjoin(settings.read().unwrap().rand_conjoin_vector, &player);
+                    matrix.write().unwrap().new_check_conjoinn(&player);
                     println!("\n\n\n\n\n\n\n\n\n\n\n\n");
                     matrix.read().unwrap().pretty_console_print();
                     println!("Score : {}", player.read().unwrap().score);
