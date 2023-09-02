@@ -1,0 +1,8 @@
+[0.9.1]
++ Reworked style of gameform
++ Added last 3 primes output
++ Added message that we proude of you and you have collected some new prime
++ Now all game has 60 fps bound update time
++ SOUND!
++ Added  pause with some typos AND SOUND!
++ Added sounds to spawning and conjoing the tiles
