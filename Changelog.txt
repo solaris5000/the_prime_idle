@@ -1,3 +1,9 @@
+[0.9.2]
++ Now conjoin sound may be triggered once per [paste time here], on this time, its 200 ms
++ Added upgrade sound
++ Added upper limit for spawner, now it can spawn random number in some limits
++ Wealth system!
+
 [0.9.1]
 + Reworked style of gameform
 + Added last 3 primes output

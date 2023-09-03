@@ -1,9 +1,13 @@
-use ggez::{*, graphics::{Mesh, TextLayout, Text, GraphicsContext, Rect, Color}, audio::SoundSource};
-use std::{thread, sync::RwLock, process::exit};
+use ggez::{*, graphics::{Mesh, TextLayout, Text, Rect, Color}, audio::SoundSource};
+use rand::Rng;
+use std::process::exit;
 
 const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(5000);
 const SCORE_NEW_PRIME_COST_MODIFIER : f64 = 1.0;
+const WEALTH_NEW_PRIME_COST_MODIFIER : f64 = 0.4;
+const PRISE_COST_MODIFIER : f64 = 2.2;
 const SCORE_REPEATING_PRIME_COST_MODIFIER : f64 = 0.3;
+const TICS_SPAWN_TIMER : u32 = 100; // use 60 fps math here, 60 fps * 5 secs = 300 tics
 
 const TILE_SIZE : f32 = 40.0;
 const TILES_OFFSET : f32 = 5.0;
@@ -17,6 +21,10 @@ struct Boxy {
 impl Boxy {
     fn new() -> Boxy {
         Boxy { value: 1 }
+    }
+
+    fn spawn( value : u64 ) -> Boxy {
+        Boxy { value }
     }
 }
 
@@ -399,7 +407,7 @@ impl GameMatrix {
                     //            dbg!(f_lef.clone());
                     //            dbg!(f_rig.clone());
                     //            dbg!(f_bot.clone());
-                    player.add_score(matrix.0[row].0[col].filler.unwrap().value);
+                    player.add_score_wealth(matrix.0[row].0[col].filler.unwrap().value);
                     //matrix.pretty_console_print();
                 }
             
@@ -738,7 +746,7 @@ impl GameMatrix {
     /// Если случайно сгенерированная точка уже занята, пробует повторно сгенерировать точку
     /// В случае, если все ячейки заняты, инициирует завершение игры
     //fn spawn(&mut self, upper_limit : u64, player : &std::sync::Arc<RwLock<Player>>) { Старая сигнатура
-    fn spawn(&mut self, upper_limit : u64, player : &mut Player) -> bool {
+    fn spawn(&mut self, spawner : &Spawner,  player : &mut Player) -> bool {
         //todo!("Необходимо сделать для версии 0.3.0");
         //todo!("0.9.0 переписать эту функцию, чтобы она брала только пустые клетки, иначе возможен бесконечный цикл")
         if self.gameover_check(player) {
@@ -750,8 +758,9 @@ impl GameMatrix {
             match self.0[point.0 as usize].0[point.1 as usize].filler {
                 Some(_) => {},
                 None => {
-                    
-                    self.0[point.0 as usize].0[point.1 as usize].filler = Some(Boxy::new());
+                    let mut rng = rand::thread_rng();
+                    let rand_value = rng.gen_range(1..=spawner.upper_limit);
+                    self.0[point.0 as usize].0[point.1 as usize].filler = Some(Boxy::spawn(rand_value));
                     return true;
                 },
             }
@@ -775,11 +784,24 @@ impl IntoIterator for GameMatrix {
     }
 }*/
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 /// Описывает объект, который содержит параметры для спавна новой ноды на поле по истечению таймера
 struct Spawner {
     upper_limit: u64,
+    increase_price : u64,
     cooldown: std::time::Duration,
+}
+
+impl Spawner {
+    fn increase_limit(&mut self) {
+        self.upper_limit += 1;
+    }
+}
+
+impl Default for Spawner {
+    fn default() -> Self {
+        Spawner { upper_limit: 1, increase_price: 11, cooldown: TIME_5_SECONDS }
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -808,12 +830,13 @@ impl Player {
 
     /// Увеличивает количество очков игрока в зависимости от переданного в функцию простого числа
     /// При просчёте очков применяет модификаторы константы для новых и повторяющихся простых чисел
-    fn add_score(&mut self, prime : u64) {
+    fn add_score_wealth(&mut self, prime : u64) {
         //println!("adding score for {}", prime);
         if self.is_prime_collected(prime) {
             self.score += (prime as f64 * SCORE_REPEATING_PRIME_COST_MODIFIER).ceil() as u64;
         } else {
             self.score += (prime as f64 * SCORE_NEW_PRIME_COST_MODIFIER).ceil() as u64;
+            self.wealth += (prime as f64 * WEALTH_NEW_PRIME_COST_MODIFIER).ceil() as u64;
         }
     }
 
@@ -897,7 +920,7 @@ struct Game {
 impl Game {
     fn new(sounds : Sounds) -> Game {
         Game { player: Player::default(),
-            spawner: Spawner { upper_limit: 5, cooldown: TIME_5_SECONDS /*std::time::Duration::from_millis(500)*/}, 
+            spawner: Spawner { ..Default::default()}, 
             matrix: GameMatrix::init(),
             //matrix: GameMatrix::inittest(),
             gamestate : GameState::Menu,
@@ -945,6 +968,16 @@ impl Game {
         (mesh, text)
     }
 
+
+    fn increase_spawn_limit(&mut self, _ctx: &mut Context,) {
+        if self.player.wealth >= self.spawner.increase_price {
+            self.player.wealth -= self.spawner.increase_price;
+            self.spawner.increase_price = (self.spawner.increase_price as f64 * PRISE_COST_MODIFIER).ceil() as u64;
+            self.spawner.increase_limit();
+            let _ = self.sounds.checkout.play_detached(_ctx);
+        }
+    }
+
 }
 
 // Часть ответсвенная за отрисовку и оконность
@@ -957,9 +990,9 @@ impl ggez::event::EventHandler<GameError> for Game {
                 // обновление игры
                 self.matrix = GameMatrix::init();
                 self.player = Player::default();
-                self.spawner = Spawner { upper_limit: 5, cooldown: TIME_5_SECONDS };
+                self.spawner = Spawner { ..Default::default() };
                 self.gamestate = GameState::Game;
-                self.settings = Settings { rand_conjoin_vector: true, spawn_timer : 300u32 };
+                self.settings = Settings { rand_conjoin_vector: true, spawn_timer : TICS_SPAWN_TIMER };
             },
             GameState::Game | GameState::Pause => {
 
@@ -971,9 +1004,9 @@ impl ggez::event::EventHandler<GameError> for Game {
                         //println!("tick");
                         self.settings.spawn_timer -=1;
                         if self.settings.spawn_timer == 0 {
-                            self.settings.spawn_timer = 300;
+                            self.settings.spawn_timer = TICS_SPAWN_TIMER;
             
-                            if self.matrix.spawn(1, &mut self.player) {
+                            if self.matrix.spawn(&self.spawner, &mut self.player) {
                                 let _ = self.sounds.spawn.play_detached(_ctx);
                             } else {
                                 self.gamestate = GameState::GameOver;
@@ -981,7 +1014,10 @@ impl ggez::event::EventHandler<GameError> for Game {
                         }
             
                     if self.matrix.new_check_conjoinn(&mut self.player) {
-                        let _ = self.sounds.conjoin.play_detached(_ctx);
+                        if self.sounds.conjoin.elapsed() > std::time::Duration::from_millis(200) || self.sounds.conjoin.elapsed().as_millis() == 0{
+                            let _ = self.sounds.conjoin.play_detached(_ctx);
+                        }
+                            
                     }
                     },
                     _ => {},
@@ -1040,22 +1076,40 @@ impl ggez::event::EventHandler<GameError> for Game {
                 _ctx.gfx.size().0 - 150.0, TILES_OFFSET
             ]));
 
+        // Отрисовка ренджа спавнера
+        canvas.draw( &graphics::Text::new(format!("Range: [1..{}]", self.spawner.upper_limit)).to_owned()
+            , graphics::DrawParam::default().dest([
+                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 20.0
+            ]));
+
+        // Отрисовка Стоимости улучшения
+        canvas.draw( &graphics::Text::new(format!("Up price: {}", self.spawner.increase_price)).to_owned()
+            , graphics::DrawParam::default().dest([
+                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 40.0
+            ]));
+
         // Отрисовка счётчика счёта
         canvas.draw( &graphics::Text::new("Score: ").add(self.player.score.to_string()).to_owned()
             , graphics::DrawParam::default().dest([
-                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 20.0
+                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 60.0
+            ]));
+
+        // Отрисовка текущей "валюты" игрока
+        canvas.draw( &graphics::Text::new("Wealth: ").add(self.player.wealth.to_string()).to_owned()
+            , graphics::DrawParam::default().dest([
+                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 80.0
             ]));
         
         // Отрисовка последних 3 собранных 
         canvas.draw( &graphics::Text::new("Last collected:").to_owned()
             , graphics::DrawParam::default().dest([
-                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 40.0
+                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 100.0
             ]));
         if self.player.collected_primes.len() <= 3 {
             for i in 0..self.player.collected_primes.len() {
                 canvas.draw( &graphics::Text::new(self.player.collected_primes[i].to_string()).to_owned()
                 , graphics::DrawParam::default().dest([
-                    _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 60.0 + 15.0 * i as f32
+                    _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 120.0 + 15.0 * i as f32
                 ]));
             }
         } else {
@@ -1063,7 +1117,7 @@ impl ggez::event::EventHandler<GameError> for Game {
             for i in self.player.collected_primes.len()-3..self.player.collected_primes.len() {
                 canvas.draw( &graphics::Text::new(self.player.collected_primes[i].to_string()).to_owned()
                 , graphics::DrawParam::default().dest([
-                    _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 60.0 + 15.0 * displasment as f32
+                    _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 120.0 + 15.0 * displasment as f32
                 ]));
                 displasment+=1;
             }
@@ -1126,17 +1180,14 @@ impl ggez::event::EventHandler<GameError> for Game {
             GameState::GameOver => {},
             GameState::Menu => {
                 // Отрисовка меню
-                canvas.draw( &graphics::Text::new("THE PRIME IDLE").to_owned()
+                canvas.draw( 
+                &graphics::Text::new("THE PRIME IDLE\n\nPRESS ANY KEY TO START\nESC - TO EXIT").
+                set_bounds(mint::Vector2::<f32>{x : 540.0, y : 320.0}).
+                set_wrap(true).
+                set_layout(TextLayout { h_align: graphics::TextAlign::Middle, v_align: graphics::TextAlign::Middle }).
+                to_owned()
                 , graphics::DrawParam::default().dest([
-                    0.0, 0.0
-                ]));
-                canvas.draw( &graphics::Text::new("PRESS ANY KEY TO START").to_owned()
-                , graphics::DrawParam::default().dest([
-                    0.0, 20.0
-                ]));
-                canvas.draw( &graphics::Text::new("PRESS ESC KEY TO EXIT").to_owned()
-                , graphics::DrawParam::default().dest([
-                    0.0, 40.0
+                    270.0, 160.0
                 ]));
             },
             _ => { },
@@ -1144,6 +1195,19 @@ impl ggez::event::EventHandler<GameError> for Game {
 
         
         canvas.finish(_ctx)?;
+        Ok(())
+    }
+
+    fn mouse_button_down_event(
+            &mut self,
+            _ctx: &mut Context,
+            _button: event::MouseButton,
+            _x: f32,
+            _y: f32,
+        ) -> Result<(), GameError> {
+        
+        self.increase_spawn_limit(_ctx);
+
         Ok(())
     }
 
