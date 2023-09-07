@@ -1,3 +1,13 @@
+[Maybe in future]
+? Ability to destroy a cell to get a 66.6% of its value as wealth, with some cooldown, idk, like 666 secs?
+? Ability to refresh upper ability with huge price increaser 
+
+[0.9.3]
++ Button for increase spawn rate
++ Button for increase spawn limit
++ Now when you loosing (is it possible?) you getting lose screen
++ Fixed pause and gameover screens, it now use less CPU
+
 [0.9.2]
 + Now conjoin sound may be triggered once per [paste time here], on this time, its 200 ms
 + Added upgrade sound

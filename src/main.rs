@@ -934,6 +934,7 @@ impl Game {
 }
 
 fn main() {
+    
     let game = Game::new();
    
     //game.matrix.pretty_console_print();

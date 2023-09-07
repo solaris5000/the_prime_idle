@@ -1,13 +1,17 @@
+#![windows_subsystem = "windows"]
+
 use ggez::{*, graphics::{Mesh, TextLayout, Text, Rect, Color}, audio::SoundSource};
 use rand::Rng;
 use std::process::exit;
 
-const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(5000);
+
+//unused since 0.9.3 const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(5000);
 const SCORE_NEW_PRIME_COST_MODIFIER : f64 = 1.0;
 const WEALTH_NEW_PRIME_COST_MODIFIER : f64 = 0.4;
-const PRISE_COST_MODIFIER : f64 = 2.2;
+const PRISE_COST_MODIFIER_SPAWN_LIMIT : f64 = 2.2;
+const PRISE_COST_MODIFIER_SPAWN_RATE : f64 = 1.2;
 const SCORE_REPEATING_PRIME_COST_MODIFIER : f64 = 0.3;
-const TICS_SPAWN_TIMER : u32 = 100; // use 60 fps math here, 60 fps * 5 secs = 300 tics
+const TICS_SPAWN_TIMER : u64 = 100; // use 60 fps math here, 60 fps * 5 secs = 300 tics
 
 const TILE_SIZE : f32 = 40.0;
 const TILES_OFFSET : f32 = 5.0;
@@ -84,25 +88,25 @@ impl GameMatrix {
 
         let mut initializator = GameMatrix {
                 0: [ MatrixRow { 0 : [ 
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 23 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 23 })}
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })}
                 ]}, 
-                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 199 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
+                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })}
                 ]}, 
-                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 23 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
+                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })}
                 ]}, 
-                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 7 })},
-                                    MatrixNode {aviable : true, filler : None},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })},
-                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 1 })}
+                MatrixRow { 0 : [   MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })},
+                                    MatrixNode {aviable : true, filler : Some(Boxy { value : 2 })}
                 ]}, 
 
                 ]
@@ -556,7 +560,7 @@ impl GameMatrix {
                                 }
 
                                 oc_inner.value = maybe_new_prime;
-                                println!("All together");
+                                //println!("All together");
                                 // обработка на случай если все сразу стали 
                                 //let a = operating_cell_neighbours[1].as_mut();
                                 // Возможно так можно будет мутировать, надо будет разобраться с этим, либо до конца блока
@@ -721,7 +725,7 @@ impl GameMatrix {
     }
 
     //fn gameover_check(&self, player : &std::sync::Arc<RwLock<Player>>) { Старая сигнатура
-    fn gameover_check(&self, player : &Player) -> bool {
+    fn gameover_check(&self) -> bool {
         for row in 0..3usize {
             for col in 0..3usize {
                 match self.0[row].0[col].filler {
@@ -749,7 +753,7 @@ impl GameMatrix {
     fn spawn(&mut self, spawner : &Spawner,  player : &mut Player) -> bool {
         //todo!("Необходимо сделать для версии 0.3.0");
         //todo!("0.9.0 переписать эту функцию, чтобы она брала только пустые клетки, иначе возможен бесконечный цикл")
-        if self.gameover_check(player) {
+        if self.gameover_check() {
             return false;
         }
 
@@ -789,7 +793,8 @@ impl IntoIterator for GameMatrix {
 struct Spawner {
     upper_limit: u64,
     increase_price : u64,
-    cooldown: std::time::Duration,
+    ticks_to_spawn: u64,
+    reduce_ticks_price : u64,
 }
 
 impl Spawner {
@@ -800,7 +805,7 @@ impl Spawner {
 
 impl Default for Spawner {
     fn default() -> Self {
-        Spawner { upper_limit: 1, increase_price: 11, cooldown: TIME_5_SECONDS }
+        Spawner { upper_limit: 1, increase_price: 11, ticks_to_spawn: TICS_SPAWN_TIMER, reduce_ticks_price : 11  }
     }
 }
 
@@ -822,7 +827,7 @@ impl Player {
         if self.collected_primes.contains(&prime) {
             true
         } else {
-            println!("Wow, you have collected {}", prime);
+            //println!("Wow, you have collected {}", prime);
             self.collected_primes.push(prime);
             false
         }
@@ -873,7 +878,7 @@ impl Default for GameState {
 /// Структура настроек, чего не понятного то
 struct Settings {
     rand_conjoin_vector : bool, // Рандомизация направления слияния. Проверка будет происходить всё так же  ЛВ -> ПН
-    spawn_timer : u32,
+    spawn_timer : u64,
 }
 
 
@@ -921,10 +926,10 @@ impl Game {
     fn new(sounds : Sounds) -> Game {
         Game { player: Player::default(),
             spawner: Spawner { ..Default::default()}, 
-            matrix: GameMatrix::init(),
-            //matrix: GameMatrix::inittest(),
+            //matrix: GameMatrix::init(),
+            matrix: GameMatrix::inittest(),
             gamestate : GameState::Menu,
-            settings : Settings { rand_conjoin_vector: true, spawn_timer : 5u32 },
+            settings : Settings { rand_conjoin_vector: true, spawn_timer : 5u64 },
             sounds 
         }
     }
@@ -972,8 +977,18 @@ impl Game {
     fn increase_spawn_limit(&mut self, _ctx: &mut Context,) {
         if self.player.wealth >= self.spawner.increase_price {
             self.player.wealth -= self.spawner.increase_price;
-            self.spawner.increase_price = (self.spawner.increase_price as f64 * PRISE_COST_MODIFIER).ceil() as u64;
+            self.spawner.increase_price = (self.spawner.increase_price as f64 * PRISE_COST_MODIFIER_SPAWN_LIMIT).ceil() as u64;
             self.spawner.increase_limit();
+            let _ = self.sounds.checkout.play_detached(_ctx);
+        }
+    }
+
+    fn reduce_spawn_tics(&mut self, _ctx: &mut Context,) {
+        // some limitations to reduce spawnrate
+        if self.player.wealth >= self.spawner.reduce_ticks_price &&  self.spawner.ticks_to_spawn != 1u64 {
+            self.player.wealth -= self.spawner.reduce_ticks_price;
+            self.spawner.reduce_ticks_price = (self.spawner.reduce_ticks_price as f64 * PRISE_COST_MODIFIER_SPAWN_RATE).ceil() as u64;
+            self.spawner.ticks_to_spawn -= 1;
             let _ = self.sounds.checkout.play_detached(_ctx);
         }
     }
@@ -994,13 +1009,8 @@ impl ggez::event::EventHandler<GameError> for Game {
                 self.gamestate = GameState::Game;
                 self.settings = Settings { rand_conjoin_vector: true, spawn_timer : TICS_SPAWN_TIMER };
             },
-            GameState::Game | GameState::Pause => {
 
-
-
-                        match self.gamestate  {
-                            GameState::Pause => {},
-                            GameState::Game => {
+            GameState::Game   => {
                         //println!("tick");
                         self.settings.spawn_timer -=1;
                         if self.settings.spawn_timer == 0 {
@@ -1017,21 +1027,20 @@ impl ggez::event::EventHandler<GameError> for Game {
                         if self.sounds.conjoin.elapsed() > std::time::Duration::from_millis(200) || self.sounds.conjoin.elapsed().as_millis() == 0{
                             let _ = self.sounds.conjoin.play_detached(_ctx);
                         }
-                            
                     }
-                    },
-                    _ => {},
-                    };
 
 
-            }
+            },
 
+            GameState::Pause => {
+                ggez::timer::sleep(std::time::Duration::from_millis(100));
+            },  
             GameState::GameOver => {
-
-            },
+                ggez::timer::sleep(std::time::Duration::from_millis(100));
+            }, 
             GameState::Menu => {
-
-            },
+                ggez::timer::sleep(std::time::Duration::from_millis(100));
+            }, 
             _ => { unimplemented!()},
         }
         } // all update is bounede to 1 fps
@@ -1044,7 +1053,7 @@ impl ggez::event::EventHandler<GameError> for Game {
 
         match self.gamestate {
             
-            GameState::Game | GameState::Pause => {
+            GameState::Game | GameState::Pause | GameState::GameOver => {
 
                 let mut tiles : Vec<(graphics::Mesh, graphics::Text)> = Vec::new();
         for i in 0..=3usize {
@@ -1071,7 +1080,7 @@ impl ggez::event::EventHandler<GameError> for Game {
 
         // Отрисовка таймера спавна 
         canvas.draw( &graphics::Text::new("Spawn in: ").add(
-            &format!("{:.1}",(self.settings.spawn_timer as f32 / 60.0))).to_owned()
+            &format!("{:.2}",(self.settings.spawn_timer as f32 / 60.0))).to_owned()
             , graphics::DrawParam::default().dest([
                 _ctx.gfx.size().0 - 150.0, TILES_OFFSET
             ]));
@@ -1082,34 +1091,34 @@ impl ggez::event::EventHandler<GameError> for Game {
                 _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 20.0
             ]));
 
-        // Отрисовка Стоимости улучшения
-        canvas.draw( &graphics::Text::new(format!("Up price: {}", self.spawner.increase_price)).to_owned()
-            , graphics::DrawParam::default().dest([
-                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 40.0
-            ]));
+        // Отрисовка Стоимости улучшения unused since 0.9.3
+        //canvas.draw( &graphics::Text::new(format!("Up price: {}", self.spawner.increase_price)).to_owned()
+        //    , graphics::DrawParam::default().dest([
+        //        _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 40.0
+        //    ]));
 
         // Отрисовка счётчика счёта
         canvas.draw( &graphics::Text::new("Score: ").add(self.player.score.to_string()).to_owned()
             , graphics::DrawParam::default().dest([
-                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 60.0
+                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 40.0
             ]));
 
         // Отрисовка текущей "валюты" игрока
         canvas.draw( &graphics::Text::new("Wealth: ").add(self.player.wealth.to_string()).to_owned()
             , graphics::DrawParam::default().dest([
-                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 80.0
+                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 60.0
             ]));
         
         // Отрисовка последних 3 собранных 
         canvas.draw( &graphics::Text::new("Last collected:").to_owned()
             , graphics::DrawParam::default().dest([
-                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 100.0
+                _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 80.0
             ]));
         if self.player.collected_primes.len() <= 3 {
             for i in 0..self.player.collected_primes.len() {
                 canvas.draw( &graphics::Text::new(self.player.collected_primes[i].to_string()).to_owned()
                 , graphics::DrawParam::default().dest([
-                    _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 120.0 + 15.0 * i as f32
+                    _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 100.0 + 15.0 * i as f32
                 ]));
             }
         } else {
@@ -1117,12 +1126,98 @@ impl ggez::event::EventHandler<GameError> for Game {
             for i in self.player.collected_primes.len()-3..self.player.collected_primes.len() {
                 canvas.draw( &graphics::Text::new(self.player.collected_primes[i].to_string()).to_owned()
                 , graphics::DrawParam::default().dest([
-                    _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 120.0 + 15.0 * displasment as f32
+                    _ctx.gfx.size().0 - 150.0, TILES_OFFSET + 100.0 + 15.0 * displasment as f32
                 ]));
                 displasment+=1;
             }
             
         }
+
+        // Отрисовка wow текста
+        match self.player.collected_primes.last() {
+            None => {},
+            Some(val) => {
+                canvas.draw( &graphics::Text::new(format!("Wow, you have collected: {}", val)).to_owned()
+                , graphics::DrawParam::default().color(Color::BLACK)
+                .dest([
+                    15.0,  (TILE_SIZE + TILES_OFFSET) * 4.0 + TILES_OFFSET + 40.0
+                ]));
+            }
+        }
+        
+       
+
+        let button_enabled_color =  Color::from_rgb(180, 180, 180);
+        let button_disabled_color =  Color::from_rgb(240, 240, 240);
+        
+        
+
+        // Отрисовка кнопки улучшения спавн рейта
+        let spawnrate_frame = graphics::Mesh::new_rectangle(
+            _ctx, 
+            graphics::DrawMode::fill(), 
+            Rect { x: 240.0, y : 15.0, w : 100.0, h : 50.0},
+            Color::from_rgb(0, 0, 0)).unwrap();
+
+        let spawnrate_filler = graphics::Mesh::new_rectangle(
+            _ctx, 
+            graphics::DrawMode::fill(), 
+            Rect { x: 243.0, y : 18.0, w : 94.0, h : 44.0},
+            if self.player.wealth >= self.spawner.reduce_ticks_price {
+                button_enabled_color  
+            } else {
+                button_disabled_color
+            }
+            ).unwrap();
+
+            canvas.draw(&spawnrate_frame, graphics::DrawParam::default());
+            canvas.draw(&spawnrate_filler, graphics::DrawParam::default());
+        
+        let spawnrate_text = graphics::Text::new(format!("Spawn rate\n{}", self.spawner.reduce_ticks_price)).
+            set_bounds(mint::Vector2::<f32>{x : 100.0, y : 50.0}).
+            set_wrap(true).
+            set_layout(TextLayout { h_align: graphics::TextAlign::Middle, v_align: graphics::TextAlign::Middle }).
+            to_owned();
+
+    
+        canvas.draw( &spawnrate_text
+            , graphics::DrawParam::default().dest([
+                290.0, 40.0
+            ]));
+
+            
+        // Отрисовка кнопки улучшения макс спавна
+        let spawnlimit_frame = graphics::Mesh::new_rectangle(
+            _ctx, 
+            graphics::DrawMode::fill(), 
+            Rect { x: 240.0, y : 80.0, w : 100.0, h : 50.0},
+            Color::from_rgb(0, 0, 0)).unwrap();
+
+
+        let spawnlimit_filler = graphics::Mesh::new_rectangle(
+            _ctx, 
+            graphics::DrawMode::fill(), 
+            Rect { x: 243.0, y : 83.0, w : 94.0, h : 44.0},
+            if self.player.wealth >= self.spawner.increase_price {
+                button_enabled_color  
+            } else {
+                button_disabled_color
+            }).unwrap();
+
+            canvas.draw(&spawnlimit_frame, graphics::DrawParam::default());
+            canvas.draw(&spawnlimit_filler, graphics::DrawParam::default());
+        
+        let spawnlimit_text = graphics::Text::new(format!("Spawn limit\n{}", self.spawner.increase_price)).
+            set_bounds(mint::Vector2::<f32>{x : 100.0, y : 50.0}).
+            set_wrap(true).
+            set_layout(TextLayout { h_align: graphics::TextAlign::Middle, v_align: graphics::TextAlign::Middle }).
+            to_owned();
+    
+        canvas.draw( &spawnlimit_text
+            , graphics::DrawParam::default().dest([
+                290.0, 105.0
+            ]));
+        
         
 
         for i in tiles.into_iter().enumerate() {
@@ -1171,13 +1266,44 @@ impl ggez::event::EventHandler<GameError> for Game {
 
                 
             }
+            GameState::GameOver => {
+
+                // В случае проигрыша, прорисовка окна поражения
+                let lose_frame = graphics::Mesh::new_rectangle(
+                    _ctx, 
+                    graphics::DrawMode::fill(), 
+                    Rect { x: 190.0, y : 115.0, w : 160.0, h : 90.0},
+                    Color::from_rgb(0, 0, 0)).unwrap();
+
+                let lose_filler = graphics::Mesh::new_rectangle(
+                    _ctx, 
+                    graphics::DrawMode::fill(), 
+                    Rect { x: 193.0, y : 118.0, w : 154.0, h : 84.0},
+                    Color::from_rgb(180, 180, 180)).unwrap();
+
+                    canvas.draw(&lose_frame, graphics::DrawParam::default());
+                    canvas.draw(&lose_filler, graphics::DrawParam::default());
+
+                
+                let lose_text = graphics::Text::new("YOU LOSE\nSpace - start new game\nESC - Exit to menu").
+                set_bounds(mint::Vector2::<f32>{x : 160.0, y : 90.0}).
+                set_wrap(true).
+                set_layout(TextLayout { h_align: graphics::TextAlign::Middle, v_align: graphics::TextAlign::Middle }).
+                to_owned();
+
+                // Отрисовка текста паузы
+                canvas.draw( &lose_text
+                , graphics::DrawParam::default().dest([
+                    270.0, 160.0
+                ]));
+
+            }
             _ => {},
         }
         
         }
 
             },
-            GameState::GameOver => {},
             GameState::Menu => {
                 // Отрисовка меню
                 canvas.draw( 
@@ -1202,11 +1328,21 @@ impl ggez::event::EventHandler<GameError> for Game {
             &mut self,
             _ctx: &mut Context,
             _button: event::MouseButton,
-            _x: f32,
-            _y: f32,
+            x: f32,
+            y: f32,
         ) -> Result<(), GameError> {
+            /*
+            rate 240.0, y : 15.0, w : 100.0, h : 50.0
+            limit 240.0, y : 80.0, w : 100.0, h : 50.0*/
+
+        if (x >= 240.0 && x <= 340.0) && (y >= 15.0 && y <= 65.0) {
+            self.reduce_spawn_tics(_ctx);
+        };
+
+        if (x >= 240.0 && x <= 340.0) && (y >= 80.0 && y <= 130.0) {
+            self.increase_spawn_limit(_ctx);
+        };
         
-        self.increase_spawn_limit(_ctx);
 
         Ok(())
     }
@@ -1217,7 +1353,7 @@ impl ggez::event::EventHandler<GameError> for Game {
         input: input::keyboard::KeyInput,
         _repeated: bool,
     ) -> Result<(), GameError> {
-      dbg!(input.clone());
+      //dbg!(input.clone());
 
       match self.gamestate {
         
@@ -1244,7 +1380,18 @@ impl ggez::event::EventHandler<GameError> for Game {
             }
         },
         GameState::GameOver => {
-            
+            match input.scancode {
+                1 => {
+                    let _ = self.sounds.pause.play_detached(ctx);
+                    self.gamestate = GameState::Menu;
+                },
+                57  => {
+                    let _ = self.sounds.pause.play_detached(ctx);
+                    self.gamestate = GameState::NewGame;
+                }
+                _ => {
+                } // Any other
+            }
         },
         GameState::Menu => {
             match input.scancode {
@@ -1252,6 +1399,7 @@ impl ggez::event::EventHandler<GameError> for Game {
                     exit(0);
                 }
                 _ => {
+                    let _ = self.sounds.pause.play_detached(ctx);
                     self.gamestate = GameState::NewGame;
                 } // Any other
             }
@@ -1276,10 +1424,9 @@ impl ggez::event::EventHandler<GameError> for Game {
 }
 }
 
-fn main() {
 
-    
-   
+
+fn main() {  
     
     let mut c: conf::Conf = conf::Conf::new();
     c.window_mode = conf::WindowMode{height : 320.0, width : 540.0 ,  resizable : false, borderless : false, ..Default::default()};
