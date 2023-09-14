@@ -342,12 +342,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "catch-input"
-version = "1.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3334376bca255fbd40b5874653031f6695d1d5f2a05d8957c57031466fd37771"
-
-[[package]]
 name = "cc"
 version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2284,9 +2278,8 @@ dependencies = [
 
 [[package]]
 name = "the_prime_idle"
-version = "0.9.1"
+version = "0.9.4"
 dependencies = [
- "catch-input",
  "ggez",
  "primes",
  "rand",

@@ -1,6 +1,6 @@
 #![windows_subsystem = "windows"]
 
-use ggez::{*, graphics::{Mesh, TextLayout, Text, Rect, Color}, audio::SoundSource};
+use ggez::{*, graphics::{Mesh, TextLayout, Text, Rect, Color, TextFragment}, audio::SoundSource};
 use rand::Rng;
 use std::process::exit;
 
@@ -12,6 +12,7 @@ const PRISE_COST_MODIFIER_SPAWN_LIMIT : f64 = 2.2;
 const PRISE_COST_MODIFIER_SPAWN_RATE : f64 = 1.2;
 const SCORE_REPEATING_PRIME_COST_MODIFIER : f64 = 0.3;
 const TICS_SPAWN_TIMER : u64 = 100; // use 60 fps math here, 60 fps * 5 secs = 300 tics
+const TICS_MAIN_VOLUME_CHANGE : u64 = 120;
 
 const TILE_SIZE : f32 = 40.0;
 const TILES_OFFSET : f32 = 5.0;
@@ -866,6 +867,7 @@ enum GameState {
     GameOver,
     Exiting,
     NewGame,
+    PlayBackMusic,
 }
 
 impl Default for GameState {
@@ -888,6 +890,10 @@ struct Sounds {
     spawn : audio::Source,
     conjoin : audio::Source,
     checkout : audio::Source,
+    main : audio::Source,
+    main_volume_changed_ticks_fade_out : u64,
+    main_last_volume : f32,
+    main_mute : bool,
 }
 
 impl Sounds {
@@ -897,12 +903,24 @@ impl Sounds {
         let spawn = audio::Source::new(ctx, "/spawn_beep.ogg")?;
         let conjoin = audio::Source::new(ctx, "/conjoin_sound.ogg")?;
         let checkout = audio::Source::new(ctx, "/checkout.ogg")?;
+        let mut main = audio::Source::new(ctx, "/main.ogg")?;
+        main.set_repeat(true);
+        main.set_volume(0.4f32);
+
+        let main_last_volume = main.volume();
+        let main_mute = false;
+
+        let main_volume_changed_ticks_fade_out = 0u64;
         let s = Sounds {
             pause,
             unpause,
             spawn,
             conjoin,
             checkout,
+            main,
+            main_volume_changed_ticks_fade_out,
+            main_last_volume,
+            main_mute,
         };
         Ok(s)
     }
@@ -928,7 +946,7 @@ impl Game {
             spawner: Spawner { ..Default::default()}, 
             //matrix: GameMatrix::init(),
             matrix: GameMatrix::inittest(),
-            gamestate : GameState::Menu,
+            gamestate : GameState::PlayBackMusic,
             settings : Settings { rand_conjoin_vector: true, spawn_timer : 5u64 },
             sounds 
         }
@@ -996,10 +1014,15 @@ impl Game {
 }
 
 // Часть ответсвенная за отрисовку и оконность
-
 impl ggez::event::EventHandler<GameError> for Game {
     fn update(&mut self, _ctx: &mut Context) -> Result<(), GameError> {
         if _ctx.time.check_update_time(60) { // all update is bounede to 1 fps
+
+        // Fade out for background music volume changed
+        if self.sounds.main_volume_changed_ticks_fade_out > 0u64 {
+            self.sounds.main_volume_changed_ticks_fade_out -= 1;
+        }
+
         match self.gamestate {
             GameState::NewGame => {
                 // обновление игры
@@ -1041,6 +1064,10 @@ impl ggez::event::EventHandler<GameError> for Game {
             GameState::Menu => {
                 ggez::timer::sleep(std::time::Duration::from_millis(100));
             }, 
+            GameState::PlayBackMusic => {
+                let _ = self.sounds.main.play(_ctx);
+                self.gamestate = GameState::Menu;
+            }
             _ => { unimplemented!()},
         }
         } // all update is bounede to 1 fps
@@ -1319,6 +1346,37 @@ impl ggez::event::EventHandler<GameError> for Game {
             _ => { },
         }
 
+        // отрисовка изменений со звуком
+        /* 
+        let fade_percentage = ((self.sounds.main_volume_changed_ticks_fade_out as f32 / TICS_MAIN_VOLUME_CHANGE as f32) * 255 as f32).floor() as u8;
+        let main_change_back = graphics::Mesh::new_rectangle(
+            _ctx, 
+            graphics::DrawMode::fill(), 
+            Rect { x: _ctx.gfx.drawable_size().0 - 250.0, y : _ctx.gfx.drawable_size().1 - 20.0, w : 100.0, h : 20.0},
+            Color::from_rgba(180, 180, 180, fade_percentage)).unwrap();
+
+            canvas.draw(&main_change_back, graphics::DrawParam::default());
+        */
+        if self.sounds.main_volume_changed_ticks_fade_out > 0 {
+            let main_change_text = graphics::Text::new(
+                TextFragment {
+                    text : format!("Yabai volume set to : {}%", (self.sounds.main.volume() * 100.0) as u8),
+                    color : Some(Color::from_rgb(0, 0, 0)),
+                    ..Default::default()
+                }).
+            set_bounds(mint::Vector2::<f32>{x : 250.0, y : 20.0}).
+            set_wrap(true).
+            set_layout(TextLayout { h_align: graphics::TextAlign::Middle, v_align: graphics::TextAlign::Middle }).
+            to_owned();
+
+            // Отрисовка текста паузы
+            canvas.draw( &main_change_text
+            , graphics::DrawParam::default().
+            dest([
+                _ctx.gfx.drawable_size().0 - 115.0, _ctx.gfx.drawable_size().1 - 10.0
+            ]));
+        }
+
         
         canvas.finish(_ctx)?;
         Ok(())
@@ -1353,7 +1411,40 @@ impl ggez::event::EventHandler<GameError> for Game {
         input: input::keyboard::KeyInput,
         _repeated: bool,
     ) -> Result<(), GameError> {
-      //dbg!(input.clone());
+      dbg!(input.clone());
+      match input.scancode {
+        74 | 78 | 50 => {
+            self.sounds.main_volume_changed_ticks_fade_out = TICS_MAIN_VOLUME_CHANGE;
+        },
+        _ => {}
+      }
+
+      match input.scancode {
+        // Управление громкостью музыки
+        74 => {
+            if self.sounds.main.volume() > 0.0 {
+                self.sounds.main.set_volume(self.sounds.main.volume() - 0.05);
+            }
+        },
+        78 => {
+            if self.sounds.main.volume() < 1.0 {
+            self.sounds.main.set_volume(self.sounds.main.volume() + 0.05);
+            }
+        },
+        50 => {
+            if self.sounds.main_mute {
+                // Если музыка выключена
+                self.sounds.main.set_volume(self.sounds.main_last_volume);
+            } else {
+                // Если музыка включена
+                self.sounds.main_last_volume = self.sounds.main.volume();
+                self.sounds.main.set_volume(0.0);
+            }
+            self.sounds.main_mute = !self.sounds.main_mute;
+           
+        }
+        _ => {}
+      }
 
       match self.gamestate {
         
@@ -1374,7 +1465,10 @@ impl ggez::event::EventHandler<GameError> for Game {
                 1 | 57433 => {
                     let _ = self.sounds.pause.play_detached(ctx);
                     self.gamestate = GameState::Pause;
-                }
+                },
+                74 | 78 | 50 => {
+                    // Управление громкости фоновой музыки
+                },
                 _ => {
                 } // Any other
             }
@@ -1384,6 +1478,9 @@ impl ggez::event::EventHandler<GameError> for Game {
                 1 => {
                     let _ = self.sounds.pause.play_detached(ctx);
                     self.gamestate = GameState::Menu;
+                },
+                74 | 78 | 50 => {
+                    // Управление громкости фоновой музыки
                 },
                 57  => {
                     let _ = self.sounds.pause.play_detached(ctx);
@@ -1398,6 +1495,9 @@ impl ggez::event::EventHandler<GameError> for Game {
                 1 => {
                     exit(0);
                 }
+                74 | 78 | 50 => {
+                    // Управление громкости фоновой музыки
+                },
                 _ => {
                     let _ = self.sounds.pause.play_detached(ctx);
                     self.gamestate = GameState::NewGame;
@@ -1409,6 +1509,9 @@ impl ggez::event::EventHandler<GameError> for Game {
                 57433 | 57 => {
                     let _ = self.sounds.unpause.play_detached(ctx);
                     self.gamestate = GameState::Game;
+                },
+                74 | 78 | 50 => {
+                    // Управление громкости фоновой музыки
                 },
                 1 => {
                     let _ = self.sounds.unpause.play_detached(ctx);
