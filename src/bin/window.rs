@@ -1,8 +1,8 @@
 #![windows_subsystem = "windows"]
 
-use ggez::{*, graphics::{Mesh, TextLayout, Text, Rect, Color, TextFragment}, audio::SoundSource};
+use ggez::{*, graphics::{Mesh, TextLayout, Text, Rect, Color, TextFragment}, audio::SoundSource, mint::Vector2};
 use rand::Rng;
-use std::process::exit;
+use std::{process::exit, default};
 
 
 //unused since 0.9.3 const TIME_5_SECONDS : std::time::Duration = std::time::Duration::from_millis(5000);
@@ -17,19 +17,27 @@ const TICS_MAIN_VOLUME_CHANGE : u64 = 120;
 const TILE_SIZE : f32 = 40.0;
 const TILES_OFFSET : f32 = 5.0;
 
+#[derive(Debug, Clone, Default, Copy)]
+enum BoxyAnimations {
+    #[default]
+    Idle,
+    Spawning(u8),
+}
+
 #[derive(Debug, Default, Clone, Copy)]
 /// Стуктура, описывающая себе значение клетки на поле
 struct Boxy {
     value: u64,
+    animation: BoxyAnimations
 }
 
 impl Boxy {
     fn new() -> Boxy {
-        Boxy { value: 1 }
+        Boxy { value: 1, animation : BoxyAnimations::Spawning(0) }
     }
 
     fn spawn( value : u64 ) -> Boxy {
-        Boxy { value }
+        Boxy { value, animation : BoxyAnimations::Spawning(0) }
     }
 }
 
@@ -82,7 +90,7 @@ impl GameMatrix {
         initializator.0[x as usize].0[y as usize] = MatrixNode::new();
         initializator
     }
-
+/*
     /// Тестовый инициализатор
     fn inittest() -> GameMatrix {
         let (x, y) = GameMatrix::get_random_node_coords();
@@ -114,7 +122,7 @@ impl GameMatrix {
         };
         //initializator.0[x as usize].0[y as usize] = MatrixNode::new();
         initializator
-    }
+    }*/
 
     /// Генерирует случайные координаты для матрицы, возвращая их в виде кортежа из 2 элементов
     fn get_random_node_coords() -> (u8, u8) {
@@ -173,7 +181,8 @@ impl GameMatrix {
 
                                 match self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler {
                                     None => {
-                                        self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler = Some(Boxy { value: self.0[rw].0[col].filler.clone().unwrap().value });
+                                        self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler = Some(
+                                            Boxy { value: self.0[rw].0[col].filler.clone().unwrap().value, ..Default::default() });
                                         self.0[rw].0[col].filler = None;
                                     },
                                     Some(_) => {break;}
@@ -189,7 +198,8 @@ impl GameMatrix {
                         for cl in (1..=col).rev() {
                             match self.0[row].0[(cl as i32 + displacement.displasment.1) as usize].filler {
                                 None => {
-                                    self.0[row].0[(cl as i32 + displacement.displasment.1) as usize].filler = Some(Boxy { value: self.0[row].0[cl].filler.clone().unwrap().value });
+                                    self.0[row].0[(cl as i32 + displacement.displasment.1) as usize].filler = Some(
+                                        Boxy { value: self.0[row].0[cl].filler.clone().unwrap().value, ..Default::default() });
                                     self.0[row].0[cl].filler = None;
                                 },
                                 Some(_) => {break;}
@@ -218,7 +228,8 @@ impl GameMatrix {
                             for rw in row..3usize {
                                 match self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler {
                                     None => {
-                                        self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler = Some(Boxy { value: self.0[rw].0[col].filler.clone().unwrap().value });
+                                        self.0[(rw as i32 + displacement.displasment.0) as usize].0[col].filler = Some(
+                                            Boxy { value: self.0[rw].0[col].filler.clone().unwrap().value, ..Default::default() });
                                         self.0[rw].0[col].filler = None;
                                     },
                                     Some(_) => {break;}
@@ -234,7 +245,8 @@ impl GameMatrix {
                         for cl in col..3usize {
                             match self.0[row].0[(cl as i32 + displacement.displasment.1) as usize].filler {
                                 None => {
-                                    self.0[row].0[(cl as i32 + displacement.displasment.1) as usize].filler = Some(Boxy { value: self.0[row].0[cl].filler.clone().unwrap().value });
+                                    self.0[row].0[(cl as i32 + displacement.displasment.1) as usize].filler = Some(
+                                        Boxy { value: self.0[row].0[cl].filler.clone().unwrap().value, ..Default::default() });
                                     self.0[row].0[cl].filler = None;
                                 },
                                 Some(_) => {break;}
@@ -283,6 +295,10 @@ impl GameMatrix {
                     None => { break false; }, // если у нас точка матрицы пустая, зачем нам с ней вообще работать?
                         Some(operating_cell) => {
                             // Создаём массив из возможных соседей клетки
+                            match operating_cell.animation {
+                                BoxyAnimations::Idle => {},
+                                _ => {break false},
+                            }
                             let mut operating_cell_neighbours : [Option<&MatrixNode>;4] = [None; 4];
 
                             // Заполняем массив соседей
@@ -326,6 +342,10 @@ impl GameMatrix {
                                         match nei.filler {
                                             None => {},
                                             Some(val) => {
+                                                match val.animation {
+                                                    BoxyAnimations::Idle => {},
+                                                    _ => {continue;}
+                                                }
                                                 kinda_new_prime += val.value;
                                                 match it {
                                                     0usize => {f_top = true;},
@@ -362,6 +382,10 @@ impl GameMatrix {
                                             match nei.filler {
                                                 None => {},
                                                 Some(val) => {
+                                                    match val.animation {
+                                                        BoxyAnimations::Idle => {},
+                                                        _ => {continue;}
+                                                    }
                                                     if primes::is_prime(kinda_new_prime + val.value) {
                                                         match it {
                                                             0usize => {f_top = true;},
@@ -388,22 +412,26 @@ impl GameMatrix {
                     return_conjoining_result = true;
                     //matrix.pretty_console_print();
                     if f_top {
-                        matrix.0[row].0[col].filler = Some(Boxy { value: matrix.0[row].0[col].filler.unwrap().value + matrix.0[row-1].0[col].filler.unwrap().value});
+                        matrix.0[row].0[col].filler = Some(
+                            Boxy { value: matrix.0[row].0[col].filler.unwrap().value + matrix.0[row-1].0[col].filler.unwrap().value, ..Default::default()});
                         matrix.0[row-1].0[col].filler = None;
                     }
 
                     if f_lef {
-                        matrix.0[row].0[col].filler = Some(Boxy { value: matrix.0[row].0[col].filler.unwrap().value +  matrix.0[row].0[col-1].filler.unwrap().value});
+                        matrix.0[row].0[col].filler = Some(
+                            Boxy { value: matrix.0[row].0[col].filler.unwrap().value +  matrix.0[row].0[col-1].filler.unwrap().value, ..Default::default()});
                         matrix.0[row].0[col-1].filler = None;
                     }
 
                     if f_rig {
-                        matrix.0[row].0[col].filler = Some(Boxy { value : matrix.0[row].0[col].filler.unwrap().value +  matrix.0[row].0[col+1].filler.unwrap().value});
+                        matrix.0[row].0[col].filler = Some(
+                            Boxy { value : matrix.0[row].0[col].filler.unwrap().value +  matrix.0[row].0[col+1].filler.unwrap().value, ..Default::default()});
                         matrix.0[row].0[col+1].filler = None;
                     }
 
                     if f_bot {
-                        matrix.0[row].0[col].filler = Some(Boxy { value: matrix.0[row].0[col].filler.unwrap().value +  matrix.0[row+1].0[col].filler.unwrap().value});
+                        matrix.0[row].0[col].filler = Some(
+                            Boxy { value: matrix.0[row].0[col].filler.unwrap().value +  matrix.0[row+1].0[col].filler.unwrap().value, ..Default::default()});
                         matrix.0[row+1].0[col].filler = None;
                     }
                     // Le classique debug lines
@@ -944,8 +972,8 @@ impl Game {
     fn new(sounds : Sounds) -> Game {
         Game { player: Player::default(),
             spawner: Spawner { ..Default::default()}, 
-            //matrix: GameMatrix::init(),
-            matrix: GameMatrix::inittest(),
+            matrix: GameMatrix::init(),
+            //matrix: GameMatrix::inittest(),
             gamestate : GameState::PlayBackMusic,
             settings : Settings { rand_conjoin_vector: true, spawn_timer : 5u64 },
             sounds 
@@ -953,10 +981,11 @@ impl Game {
     }
 
 
-    fn prepare_tile(_ctx: &mut Context, tile_position : (f32, f32), padding_color : graphics::Color, tile_number : usize, tile_data : &MatrixNode) -> (Mesh, Text) {
+    fn prepare_tile(_ctx: &mut Context, tile_position : (f32, f32), padding_color : graphics::Color, tile_number : usize, tile_data : &MatrixNode) 
+    -> (Mesh, Text, f32) {
 
         let empty_color = graphics::Color::from_rgb(60, 60, 60);
-        let (text, mesh)  = match tile_data.filler {
+        let (text, mesh, scale)  = match tile_data.filler {
             None => {
                     (graphics::Text::new("").
                     set_bounds(mint::Vector2::<f32>{x : TILE_SIZE, y : TILE_SIZE}).
@@ -968,10 +997,22 @@ impl Game {
                         graphics::DrawMode::fill(), 
                         Rect {x : tile_position.0 + TILES_OFFSET, y : tile_position.1 + TILES_OFFSET, w : TILE_SIZE, h : TILE_SIZE}, 
                         10.0, 
-                        empty_color).unwrap()
+                        empty_color).unwrap(),
+
+                    1.0
                 )
             },
             Some( boxy ) => {
+                let scale = match boxy.animation {
+                    BoxyAnimations::Idle => { 1.0 },
+                    BoxyAnimations::Spawning(val) => {
+                        if val < 14 {
+                            val as f32 / 14.0  
+                        } else {
+                            20.0 / 14.0 - (val as f32 / 14.0 - 1.0)
+                        }                      
+                    }
+                }; 
                 (
                     graphics::Text::new(&boxy.value.to_string()).
                     set_bounds(mint::Vector2::<f32>{x : TILE_SIZE, y : TILE_SIZE}).
@@ -982,13 +1023,19 @@ impl Game {
                     graphics::Mesh::new_rounded_rectangle(
                         _ctx, 
                         graphics::DrawMode::fill(), 
-                        Rect {x : tile_position.0 + TILES_OFFSET, y : tile_position.1 + TILES_OFFSET, w : TILE_SIZE, h : TILE_SIZE}, 
+                        Rect {
+                            x : tile_position.0 + TILES_OFFSET + TILE_SIZE / 2.0 - TILE_SIZE * scale / 2.0, 
+                            y : tile_position.1 + TILES_OFFSET + TILE_SIZE / 2.0 - TILE_SIZE * scale / 2.0, 
+                            w : TILE_SIZE * scale, 
+                            h : TILE_SIZE * scale}, 
                         10.0, 
-                        padding_color).unwrap()
+                        padding_color).unwrap(),
+
+                    scale
                 )
             }
         };
-        (mesh, text)
+        (mesh, text, scale)
     }
 
 
@@ -1015,6 +1062,7 @@ impl Game {
 
 // Часть ответсвенная за отрисовку и оконность
 impl ggez::event::EventHandler<GameError> for Game {
+
     fn update(&mut self, _ctx: &mut Context) -> Result<(), GameError> {
         if _ctx.time.check_update_time(60) { // all update is bounede to 1 fps
 
@@ -1040,7 +1088,7 @@ impl ggez::event::EventHandler<GameError> for Game {
                             self.settings.spawn_timer = TICS_SPAWN_TIMER;
             
                             if self.matrix.spawn(&self.spawner, &mut self.player) {
-                                let _ = self.sounds.spawn.play_detached(_ctx);
+                                //let _ = self.sounds.spawn.play_detached(_ctx);
                             } else {
                                 self.gamestate = GameState::GameOver;
                             }
@@ -1050,7 +1098,29 @@ impl ggez::event::EventHandler<GameError> for Game {
                         if self.sounds.conjoin.elapsed() > std::time::Duration::from_millis(200) || self.sounds.conjoin.elapsed().as_millis() == 0{
                             let _ = self.sounds.conjoin.play_detached(_ctx);
                         }
-                    }
+                    }; 
+
+                    // update анимации
+                    for i in 0..4usize {
+                        for j in 0..4usize {
+                            match &mut self.matrix.0[i].0[j].filler {
+                                None => {},
+                                Some(inner) => {
+                                    match &mut inner.animation {
+                                        BoxyAnimations::Idle => {},
+                                        BoxyAnimations::Spawning(val) => { 
+                                            if *val == 20 {
+                                                let _ = self.sounds.spawn.play_detached(_ctx);
+                                                inner.animation = BoxyAnimations::Idle;
+                                            } else {
+                                                *val += 1;
+                                            }
+                                        },
+                                    };
+                                },
+                            };
+                        }
+                    } 
 
 
             },
@@ -1082,7 +1152,7 @@ impl ggez::event::EventHandler<GameError> for Game {
             
             GameState::Game | GameState::Pause | GameState::GameOver => {
 
-                let mut tiles : Vec<(graphics::Mesh, graphics::Text)> = Vec::new();
+                let mut tiles : Vec<(graphics::Mesh, graphics::Text, f32)> = Vec::new();
         for i in 0..=3usize {
             for j in 0..=3usize {
                 tiles.push(
@@ -1251,9 +1321,10 @@ impl ggez::event::EventHandler<GameError> for Game {
             let col = (i.0 % 4) as f32;
             let row = ((i.0 / 4) as f32).floor();
 
-        // Отрисовка самой матрицы игровой 
+        // Отрисовка матрицы игровой 
             canvas.draw(&i.1.0, graphics::DrawParam::default());
             canvas.draw(&i.1.1, graphics::DrawParam::default()
+            .scale(Vector2{x : i.1.2, y : i.1.2})
             .dest([
                 15.0 + (TILE_SIZE + TILES_OFFSET) * (col) + ((TILE_SIZE ) / 2.0 + TILES_OFFSET),
                 15.0 + (TILE_SIZE + TILES_OFFSET) * (row) + ((TILE_SIZE ) / 2.0 + TILES_OFFSET)

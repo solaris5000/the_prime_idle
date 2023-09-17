@@ -1,3 +1,7 @@
+[To DO]
+- rework matrix as field more than 4x4
+- diassamble project to files
+
 [Maybe in future]
 ? Ability to destroy a cell to get a 66.6% of its value as wealth, with some cooldown, idk, like 666 secs?
 ? Ability to refresh upper ability with huge price increaser 
@@ -5,6 +9,9 @@
 ?? Main Hero that can push blocks
 ?? BOSSES!
 ?? Field expansion?
+
+[0.9.5]
++ Spawn animation for tiles
 
 [0.9.4]
 + Really important upgrade, added "Yabai The Maid 永遠の春永遠の春", is it does not copyright?
