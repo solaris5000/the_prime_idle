@@ -10,6 +10,11 @@
 ?? BOSSES!
 ?? Field expansion?
 
+[0.10.0]
++ Project disassembled to modules
++ Now all the consts of game is in the "const.rs" module
++ Changed mechanic of conjoing, now it should be optimized cause there less creating of new object and more of editing existing
+
 [0.9.5]
 + Spawn animation for tiles
 
